@@ -10,8 +10,8 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        "three": "./lib/three/three.module.min.js",
+        "three/addons/": "./lib/three/addons/"
       }
     }
   </script>
@@ -63,7 +63,10 @@
   <div id="ecran-menu" class="ecran">
     <h1>ARÈNE</h1>
     <p class="sous-titre">Survis aux vagues d'ennemis le plus longtemps possible.</p>
-    <button id="btn-jouer">Jouer</button>
+    <div class="boutons">
+      <button id="btn-jouer">Jouer</button>
+      <button id="btn-classement" class="secondaire">Classement</button>
+    </div>
     <p id="record-menu"></p>
     <div class="commandes commandes-pc">
       <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
@@ -95,7 +98,21 @@
   <div id="ecran-fin" class="ecran cache">
     <h2>Tu es tombé au combat</h2>
     <p id="fin-stats"></p>
+    <form id="form-score" autocomplete="off">
+      <label for="pseudo">Ton pseudo</label>
+      <input id="pseudo" name="pseudo" maxlength="16" placeholder="Ton pseudo" enterkeyhint="send">
+      <button type="submit" id="btn-enregistrer" class="secondaire">Enregistrer mon score</button>
+    </form>
+    <p id="score-etat" class="note" role="status"></p>
+    <ol id="fin-classement" class="classement"></ol>
     <button id="btn-rejouer">Rejouer</button>
+  </div>
+
+  <div id="ecran-classement" class="ecran cache">
+    <h2>Meilleurs scores</h2>
+    <p id="classement-source" class="note"></p>
+    <ol id="classement-liste" class="classement"></ol>
+    <button id="btn-retour" class="secondaire">Retour</button>
   </div>
 
   <script type="module" src="src/main.js"></script>

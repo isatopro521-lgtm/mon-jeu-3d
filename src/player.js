@@ -30,6 +30,7 @@ export class Joueur {
     this.secousse = 0;
 
     addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLInputElement) return; // saisie du pseudo
       this.touches.add(e.code);
       if (e.code === 'Space') e.preventDefault();
     });

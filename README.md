@@ -25,6 +25,65 @@ Puis ouvrir http://localhost:8000 dans le navigateur.
 
 Pour jouer sur téléphone, lancer le serveur sur l'ordinateur et ouvrir `http://<adresse-IP-de-l'ordinateur>:8000` depuis le téléphone (même réseau Wi-Fi).
 
+### Mettre le jeu en ligne
+
+**GitHub Pages** (gratuit, adresse `https://isatopro521-lgtm.github.io/mon-jeu-3d/`) :
+
+1. Rendre le dépôt public : *Settings → General → Danger Zone → Change visibility → Public*
+   (GitHub Pages est gratuit uniquement pour les dépôts publics).
+2. Activer Pages : *Settings → Pages → Build and deployment → Source : **GitHub Actions***.
+3. Fusionner le code dans la branche `main`. Le workflow `.github/workflows/pages.yml`
+   publie alors le jeu automatiquement à chaque modification de `main`
+   (suivi dans l'onglet *Actions*).
+
+**itch.io** (site de jeux indépendants, pour être découvert par des joueurs) :
+
+1. Fabriquer le zip : `bash scripts/zip-itch.sh` → `dist/arene-itch.zip`
+   (le workflow GitHub le fabrique aussi : onglet *Actions* → dernière exécution → *Artifacts*).
+2. Sur itch.io : *Upload new project* → *Kind of project* : **HTML** → envoyer le zip
+   → cocher *This file will be played in the browser*.
+3. Dans *Embed options* : taille 1280 × 720, cocher *Mobile friendly* (orientation paysage)
+   et *Fullscreen button*.
+4. Ajouter une description, des captures d'écran, puis *Save* et passer la page en *Public*.
+
+Le jeu n'a besoin d'aucun serveur ni d'aucun site extérieur : la bibliothèque Three.js
+(licence MIT) est incluse dans `lib/three/`.
+
+### Classement
+
+À la fin d'une partie, le joueur entre son pseudo pour enregistrer son score.
+Le bouton *Classement* du menu affiche les 10 meilleurs. La source est choisie toute seule :
+
+| Situation | Classement |
+| --- | --- |
+| `src/config.js` rempli (voir ci-dessous) | **Mondial**, commun à tous les joueurs |
+| Jeu ouvert depuis sa page Claude | Partagé entre les personnes invitées sur la page |
+| Sinon | Local, sur l'appareil du joueur |
+
+**Activer le classement mondial** (gratuit, avec [Supabase](https://supabase.com)) :
+
+1. Créer un compte et un projet sur supabase.com.
+2. Dans *SQL Editor*, exécuter :
+
+   ```sql
+   create table scores (
+     id bigint generated always as identity primary key,
+     pseudo text not null check (char_length(pseudo) between 1 and 16),
+     score integer not null check (score between 0 and 10000000),
+     vague integer not null check (vague between 1 and 1000),
+     cree_le timestamptz not null default now()
+   );
+   alter table scores enable row level security;
+   create policy "tout le monde lit" on scores for select using (true);
+   create policy "tout le monde ajoute" on scores for insert with check (true);
+   ```
+
+3. Dans *Project Settings → API*, copier l'**URL du projet** et la clé **anon public**
+   dans `src/config.js`. Ne jamais y mettre la clé `service_role` (elle est secrète).
+
+Comme le jeu tourne dans le navigateur, un joueur malin peut envoyer un faux score.
+Si ça arrive, on peut supprimer la ligne dans *Table Editor* sur Supabase.
+
 ### Commandes PC
 
 | Touche | Action |
@@ -64,8 +123,12 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/effects.js` | Étincelles et traînées de balles |
 | `src/pickups.js` | Trousses de soin |
 | `src/touch.js` | Commandes tactiles (joystick, visée, boutons) |
+| `src/scores.js` | Classement (mondial, partagé ou local) |
+| `src/config.js` | Réglages du classement mondial |
 | `src/hud.js` | Interface (vie, munitions, score, écrans) |
 | `src/audio.js` | Sons générés avec la Web Audio API |
+
+`lib/three/` contient Three.js 0.160.0. `scripts/zip-itch.sh` fabrique le zip pour itch.io.
 
 Ajouter `?debug` à l'URL expose l'objet `window.jeu` pour le débogage.
 

@@ -9,6 +9,7 @@ import { hud } from './hud.js';
 import { initAudio, sons } from './audio.js';
 import { melanger } from './utils.js';
 import { ControlesTactiles, estTactile, pleinEcranPaysage } from './touch.js';
+import { classement, lirePseudo, nettoyerPseudo } from './scores.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
@@ -182,6 +183,7 @@ function finDePartie() {
   hud.fin(score, partie.vague, partie.record, nouveauRecord);
   hud.record(partie.record);
   hud.ecran('fin');
+  preparerEnvoiScore(score, partie.vague);
   joueur.controles.unlock();
 }
 
@@ -226,6 +228,54 @@ function lireRecord() {
 function ecrireRecord(v) {
   try { localStorage.setItem(CLE_RECORD, String(v)); } catch { /* stockage indisponible */ }
 }
+
+// ---------- Classement ----------
+const $ = (id) => document.getElementById(id);
+let dernierePartie = null;
+
+async function chargerClassement(ol, source, moi) {
+  const { liste, nom, erreur } = await classement.meilleurs();
+  hud.classement(ol, liste, moi);
+  if (source) source.textContent = erreur ? `${nom} (le classement en ligne ne répond pas)` : nom;
+}
+
+function preparerEnvoiScore(score, vague) {
+  dernierePartie = { score, vague };
+  $('form-score').classList.remove('cache');
+  $('btn-enregistrer').disabled = false;
+  $('pseudo').value = lirePseudo();
+  $('score-etat').textContent = '';
+  chargerClassement($('fin-classement'));
+  if (!estTactile) $('pseudo').focus(); // sur téléphone on évite d'ouvrir le clavier tout seul
+}
+
+$('form-score').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!dernierePartie) return;
+  const pseudo = nettoyerPseudo($('pseudo').value);
+  if (!pseudo) {
+    $('score-etat').textContent = 'Écris un pseudo (lettres et chiffres, 16 caractères max).';
+    $('pseudo').focus();
+    return;
+  }
+  $('btn-enregistrer').disabled = true;
+  $('score-etat').textContent = 'Envoi…';
+  const { score, vague } = dernierePartie;
+  const ok = await classement.envoyer(pseudo, score, vague);
+  dernierePartie = null;
+  $('form-score').classList.add('cache');
+  $('score-etat').textContent = ok
+    ? 'Score enregistré !'
+    : 'Score gardé sur cet appareil : le classement en ligne ne répond pas.';
+  chargerClassement($('fin-classement'), null, { pseudo, score });
+});
+
+$('btn-classement').addEventListener('click', () => {
+  hud.ecran('classement');
+  $('classement-source').textContent = 'Chargement…';
+  chargerClassement($('classement-liste'), $('classement-source'));
+});
+$('btn-retour').addEventListener('click', () => hud.ecran('menu'));
 
 hud.record(partie.record);
 hud.ecran('menu');

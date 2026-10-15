@@ -14,7 +14,7 @@ const el = {
   munMax: $('mun-max'),
   rechargeTexte: $('recharge-texte'),
   message: $('message'),
-  ecrans: { menu: $('ecran-menu'), pause: $('ecran-pause'), fin: $('ecran-fin') },
+  ecrans: { menu: $('ecran-menu'), pause: $('ecran-pause'), fin: $('ecran-fin'), classement: $('ecran-classement') },
   finStats: $('fin-stats'),
   recordMenu: $('record-menu'),
 };
@@ -34,7 +34,11 @@ let messageTemps = 0;
 export const hud = {
   ecran(nom) {
     for (const [cle, e] of Object.entries(el.ecrans)) e.classList.toggle('cache', cle !== nom);
-    el.hud.classList.toggle('cache', nom === 'menu');
+    el.hud.classList.toggle('cache', nom === 'menu' || nom === 'classement');
+    if (nom) {
+      el.message.classList.remove('visible');
+      messageTemps = 0;
+    }
   },
 
   vie(vie, max) {
@@ -85,6 +89,36 @@ export const hud = {
       `Score : <strong>${score.toLocaleString('fr-FR')}</strong><br>` +
       `Vague atteinte : ${vague}<br>` +
       (nouveauRecord ? '<strong>Nouveau record !</strong>' : `Record : ${record.toLocaleString('fr-FR')}`);
+  },
+
+  /** Remplit une liste <ol> de scores ; `moi` met en valeur une entrée. */
+  classement(ol, liste, moi = null) {
+    ol.replaceChildren();
+    if (liste.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'vide';
+      li.textContent = 'Aucun score pour le moment. Sois le premier !';
+      ol.append(li);
+      return;
+    }
+    liste.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (moi && e.pseudo === moi.pseudo && e.score === moi.score) li.classList.add('moi');
+      const rang = document.createElement('span');
+      rang.className = 'rang';
+      rang.textContent = String(i + 1);
+      const pseudo = document.createElement('span');
+      pseudo.className = 'pseudo';
+      pseudo.textContent = e.pseudo;
+      const vague = document.createElement('span');
+      vague.className = 'vague-max';
+      vague.textContent = `vague ${e.vague}`;
+      const score = document.createElement('span');
+      score.className = 'points';
+      score.textContent = e.score.toLocaleString('fr-FR');
+      li.append(rang, pseudo, vague, score);
+      ol.append(li);
+    });
   },
 
   record(r) {
