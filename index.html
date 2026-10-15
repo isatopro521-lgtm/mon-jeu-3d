@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arène FPS</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="jeu"></div>
+
+  <!-- Interface pendant la partie -->
+  <div id="hud" class="cache">
+    <div id="vignette"></div>
+    <div id="viseur">
+      <span class="h"></span><span class="v"></span>
+      <div id="marqueur"><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <div id="haut">
+      <div id="vague">Vague 1</div>
+      <div id="restants"></div>
+    </div>
+    <div id="score">0</div>
+
+    <div id="bas-gauche">
+      <div class="etiquette">VIE</div>
+      <div id="barre-vie"><div id="vie-remplissage"></div></div>
+      <div id="vie-texte">100</div>
+    </div>
+
+    <div id="bas-droite">
+      <div id="arme-nom">Fusil d'assaut</div>
+      <div id="munitions"><span id="mun-chargeur">30</span><span id="mun-max"> / 30</span></div>
+      <div id="recharge-texte"></div>
+    </div>
+
+    <div id="message"></div>
+  </div>
+
+  <!-- Écrans -->
+  <div id="ecran-menu" class="ecran">
+    <h1>ARÈNE</h1>
+    <p class="sous-titre">Survis aux vagues d'ennemis le plus longtemps possible.</p>
+    <button id="btn-jouer">Jouer</button>
+    <p id="record-menu"></p>
+    <div class="commandes">
+      <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
+      <div><kbd>Souris</kbd><span>Viser</span></div>
+      <div><kbd>Clic gauche</kbd><span>Tirer</span></div>
+      <div><kbd>Espace</kbd><span>Sauter</span></div>
+      <div><kbd>Maj</kbd><span>Sprinter</span></div>
+      <div><kbd>R</kbd><span>Recharger</span></div>
+      <div><kbd>1</kbd> <kbd>2</kbd> / <kbd>Molette</kbd><span>Changer d'arme</span></div>
+      <div><kbd>Échap</kbd><span>Pause</span></div>
+    </div>
+    <p class="note">Clavier et souris requis.</p>
+  </div>
+
+  <div id="ecran-pause" class="ecran cache">
+    <h2>Pause</h2>
+    <button id="btn-reprendre">Reprendre</button>
+  </div>
+
+  <div id="ecran-fin" class="ecran cache">
+    <h2>Tu es tombé au combat</h2>
+    <p id="fin-stats"></p>
+    <button id="btn-rejouer">Rejouer</button>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

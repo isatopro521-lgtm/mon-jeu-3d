@@ -1,0 +1,229 @@
+import * as THREE from 'three';
+import { creerMonde, POINTS_APPARITION } from './world.js';
+import { Joueur } from './player.js';
+import { Armes } from './weapons.js';
+import { GestionEnnemis } from './enemies.js';
+import { Effets } from './effects.js';
+import { Bonus } from './pickups.js';
+import { hud } from './hud.js';
+import { initAudio, sons } from './audio.js';
+import { melanger } from './utils.js';
+
+const MAX_ENNEMIS_SIMULTANES = 12;
+const DELAI_APPARITION = 0.7;
+const PAUSE_ENTRE_VAGUES = 4;
+const CHANCE_SOIN = 0.22;
+const CLE_RECORD = 'mon-jeu-3d-record';
+
+// ---------- Rendu ----------
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.getElementById('jeu').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200);
+scene.add(camera); // nécessaire pour afficher l'arme attachée à la caméra
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ---------- Objets du jeu ----------
+const monde = creerMonde(scene);
+const effets = new Effets(scene);
+const joueur = new Joueur(camera, document.body, monde.boites);
+const ennemis = new GestionEnnemis(scene, monde, effets);
+const bonus = new Bonus(scene);
+
+const partie = {
+  etat: 'menu', // menu | jeu | pause | fin
+  score: 0,
+  vague: 0,
+  file: [],
+  minuteurApparition: 0,
+  entreVagues: 0,
+  record: lireRecord(),
+};
+
+let dernierSonTouche = 0;
+
+const armes = new Armes(camera, effets, {
+  getCibles: () => ennemis.cibles(),
+  onBruit: (position) => ennemis.bruit(position, 25),
+  onTouche(ennemi, tete, degats, direction, point) {
+    const res = ennemi.toucher(tete ? degats * 2 : degats, direction);
+    if (!res) return;
+    effets.etincelles(point, tete ? 0xffcc33 : 0xff3b2f, tete ? 12 : 7, 3.5, 0.5);
+    hud.marqueur(tete, res.mort);
+    const maintenant = performance.now();
+    if (maintenant - dernierSonTouche > 40) { // évite d'empiler 9 sons avec le fusil à pompe
+      dernierSonTouche = maintenant;
+      (tete ? sons.tete : sons.touche)();
+    }
+    if (res.mort) {
+      partie.score += res.points * (tete ? 1.5 : 1);
+      sons.mortEnnemi();
+      effets.etincelles(point, ennemi.t.couleur, 30, 5, 0.9);
+      if (Math.random() < CHANCE_SOIN) bonus.creer(ennemi.position.x, ennemi.position.z);
+    }
+  },
+});
+
+function blesserJoueur(n) {
+  if (partie.etat !== 'jeu') return;
+  joueur.subirDegats(n);
+  hud.degats(n);
+  sons.degat();
+}
+
+// ---------- Vagues ----------
+function composition(n) {
+  const liste = [];
+  const ajouter = (type, nombre) => { for (let i = 0; i < nombre; i++) liste.push(type); };
+  ajouter('soldat', 3 + n * 2);
+  ajouter('tireur', n >= 2 ? n - 1 : 0);
+  ajouter('brute', n >= 3 ? Math.floor((n - 1) / 2) : 0);
+  return melanger(liste);
+}
+
+function prochaineVague() {
+  partie.vague++;
+  partie.file = composition(partie.vague);
+  partie.minuteurApparition = 0.5;
+  partie.entreVagues = 0;
+  hud.message(`VAGUE ${partie.vague}`);
+  sons.vague();
+}
+
+function faireApparaitre(type) {
+  // Point d'apparition éloigné du joueur
+  const possibles = POINTS_APPARITION.filter(([x, z]) =>
+    Math.hypot(x - joueur.position.x, z - joueur.position.z) > 16);
+  const [x, z] = possibles[Math.floor(Math.random() * possibles.length)] ?? POINTS_APPARITION[0];
+  ennemis.creer(type, x + (Math.random() - 0.5) * 3, z + (Math.random() - 0.5) * 3, partie.vague);
+}
+
+function gererVagues(dt) {
+  if (partie.file.length > 0) {
+    partie.minuteurApparition -= dt;
+    if (partie.minuteurApparition <= 0 && ennemis.vivants < MAX_ENNEMIS_SIMULTANES) {
+      faireApparaitre(partie.file.shift());
+      partie.minuteurApparition = DELAI_APPARITION;
+    }
+  } else if (ennemis.liste.length === 0) {
+    if (partie.entreVagues === 0) {
+      partie.entreVagues = PAUSE_ENTRE_VAGUES;
+      const prime = 250 * partie.vague;
+      partie.score += prime;
+      joueur.soigner(25);
+      hud.message(`VAGUE TERMINÉE  +${prime}`, 2.5);
+    } else if ((partie.entreVagues -= dt) <= 0) {
+      prochaineVague();
+    }
+  }
+}
+
+// ---------- États de la partie ----------
+function nouvellePartie() {
+  ennemis.vider();
+  bonus.vider();
+  effets.vider();
+  joueur.reinitialiser();
+  armes.reinitialiser();
+  partie.score = 0;
+  partie.vague = 0;
+  partie.file = [];
+  prochaineVague();
+}
+
+function commencer() {
+  if (partie.etat === 'menu' || partie.etat === 'fin') nouvellePartie();
+  partie.etat = 'jeu';
+  armes.actif = true;
+  hud.ecran(null);
+}
+
+function mettreEnPause() {
+  if (partie.etat !== 'jeu') return;
+  partie.etat = 'pause';
+  armes.actif = false;
+  armes.gachette = false;
+  hud.ecran('pause');
+}
+
+function finDePartie() {
+  partie.etat = 'fin';
+  armes.actif = false;
+  armes.gachette = false;
+  const score = Math.round(partie.score);
+  const nouveauRecord = score > partie.record;
+  if (nouveauRecord) {
+    partie.record = score;
+    ecrireRecord(score);
+  }
+  hud.fin(score, partie.vague, partie.record, nouveauRecord);
+  hud.record(partie.record);
+  hud.ecran('fin');
+  joueur.controles.unlock();
+}
+
+joueur.controles.addEventListener('lock', commencer);
+joueur.controles.addEventListener('unlock', mettreEnPause);
+
+function demanderVerrou() {
+  initAudio();
+  joueur.controles.lock();
+}
+for (const id of ['btn-jouer', 'btn-reprendre', 'btn-rejouer']) {
+  document.getElementById(id).addEventListener('click', demanderVerrou);
+}
+
+function lireRecord() {
+  try { return Number(localStorage.getItem(CLE_RECORD)) || 0; } catch { return 0; }
+}
+function ecrireRecord(v) {
+  try { localStorage.setItem(CLE_RECORD, String(v)); } catch { /* stockage indisponible */ }
+}
+
+hud.record(partie.record);
+hud.ecran('menu');
+
+// ---------- Boucle de jeu ----------
+const horloge = new THREE.Clock();
+
+function majJeu(dt) {
+  joueur.update(dt);
+  armes.update(dt, joueur);
+  ennemis.update(dt, joueur, blesserJoueur);
+  bonus.update(dt, joueur, () => {
+    sons.soin();
+    hud.message('+ SOIN', 0.8);
+  });
+  gererVagues(dt);
+
+  hud.vie(joueur.vie, joueur.vieMax);
+  hud.munitions(armes.arme.nom, armes.chargeur, armes.arme.chargeur, armes.recharge > 0);
+  hud.vague(partie.vague, ennemis.vivants + partie.file.length);
+  hud.score(Math.round(partie.score));
+
+  if (joueur.mort) finDePartie();
+}
+
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(horloge.getDelta(), 0.05);
+  if (partie.etat === 'jeu') majJeu(dt);
+  effets.update(dt);
+  hud.update(dt, joueur.vie, joueur.vieMax);
+  renderer.render(scene, camera);
+});
+
+// Accès de débogage : ouvrir index.html?debug
+if (new URLSearchParams(location.search).has('debug')) {
+  window.jeu = { partie, joueur, ennemis, armes, commencer, scene };
+}
