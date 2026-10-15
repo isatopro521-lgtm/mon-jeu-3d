@@ -8,6 +8,7 @@ import { Bonus } from './pickups.js';
 import { hud } from './hud.js';
 import { initAudio, sons } from './audio.js';
 import { melanger } from './utils.js';
+import { ControlesTactiles, estTactile, pleinEcranPaysage } from './touch.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
@@ -15,9 +16,12 @@ const PAUSE_ENTRE_VAGUES = 4;
 const CHANCE_SOIN = 0.22;
 const CLE_RECORD = 'mon-jeu-3d-record';
 
+document.body.classList.toggle('tactile', estTactile);
+
 // ---------- Rendu ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Résolution un peu réduite sur téléphone pour garder un jeu fluide
+renderer.setPixelRatio(Math.min(devicePixelRatio, estTactile ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -28,14 +32,20 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200);
 scene.add(camera); // nécessaire pour afficher l'arme attachée à la caméra
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+// En mode portrait, on élargit le champ vertical pour garder assez de vision sur les côtés
+function ajusterCamera() {
+  const aspect = innerWidth / innerHeight;
+  const fovMin = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(40)) / aspect);
+  camera.aspect = aspect;
+  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(fovMin), 75, 115);
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
-});
+}
+ajusterCamera();
+addEventListener('resize', ajusterCamera);
 
 // ---------- Objets du jeu ----------
-const monde = creerMonde(scene);
+const monde = creerMonde(scene, { tailleOmbres: estTactile ? 1024 : 2048 });
 const effets = new Effets(scene);
 const joueur = new Joueur(camera, document.body, monde.boites);
 const ennemis = new GestionEnnemis(scene, monde, effets);
@@ -154,6 +164,7 @@ function mettreEnPause() {
   partie.etat = 'pause';
   armes.actif = false;
   armes.gachette = false;
+  relacherCommandes();
   hud.ecran('pause');
 }
 
@@ -161,6 +172,7 @@ function finDePartie() {
   partie.etat = 'fin';
   armes.actif = false;
   armes.gachette = false;
+  relacherCommandes();
   const score = Math.round(partie.score);
   const nouveauRecord = score > partie.record;
   if (nouveauRecord) {
@@ -176,13 +188,37 @@ function finDePartie() {
 joueur.controles.addEventListener('lock', commencer);
 joueur.controles.addEventListener('unlock', mettreEnPause);
 
-function demanderVerrou() {
+// ---------- Commandes tactiles ----------
+const tactile = estTactile ? new ControlesTactiles(camera, {
+  onTir(actif) {
+    armes.gachette = actif;
+    if (actif) armes.essayerTir();
+  },
+  onSaut(actif) { joueur.entree.saut = actif; },
+  onRecharge: () => armes.recharger(),
+  onArme: () => armes.changer((armes.indice + 1) % 2),
+  onPause: mettreEnPause,
+}) : null;
+
+function relacherCommandes() {
+  tactile?.reinitialiser();
+  joueur.relacherEntree();
+}
+
+// Sur PC on capture la souris ; sur téléphone on démarre directement
+function demarrer() {
   initAudio();
-  joueur.controles.lock();
+  if (estTactile) {
+    pleinEcranPaysage();
+    commencer();
+  } else {
+    joueur.controles.lock();
+  }
 }
 for (const id of ['btn-jouer', 'btn-reprendre', 'btn-rejouer']) {
-  document.getElementById(id).addEventListener('click', demanderVerrou);
+  document.getElementById(id).addEventListener('click', demarrer);
 }
+document.addEventListener('visibilitychange', () => { if (document.hidden) mettreEnPause(); });
 
 function lireRecord() {
   try { return Number(localStorage.getItem(CLE_RECORD)) || 0; } catch { return 0; }
@@ -198,6 +234,11 @@ hud.ecran('menu');
 const horloge = new THREE.Clock();
 
 function majJeu(dt) {
+  if (tactile) {
+    joueur.entree.x = tactile.axe.x;
+    joueur.entree.y = tactile.axe.y;
+    joueur.entree.sprint = tactile.sprint;
+  }
   joueur.update(dt);
   armes.update(dt, joueur);
   ennemis.update(dt, joueur, blesserJoueur);
@@ -225,5 +266,5 @@ renderer.setAnimationLoop(() => {
 
 // Accès de débogage : ouvrir index.html?debug
 if (new URLSearchParams(location.search).has('debug')) {
-  window.jeu = { partie, joueur, ennemis, armes, commencer, scene };
+  window.jeu = { partie, joueur, ennemis, armes, commencer, scene, tactile };
 }

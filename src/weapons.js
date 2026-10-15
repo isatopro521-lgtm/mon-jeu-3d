@@ -123,7 +123,7 @@ export class Armes {
     camera.add(this.lumiere);
 
     addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || e.sourceCapabilities?.firesTouchEvents) return;
       this.gachette = true;
       this.essayerTir();
     });

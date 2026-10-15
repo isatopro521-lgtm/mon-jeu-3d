@@ -2,7 +2,9 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Arène FPS</title>
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
@@ -44,6 +46,17 @@
     </div>
 
     <div id="message"></div>
+
+    <!-- Commandes tactiles (téléphone / tablette) -->
+    <div id="tactile">
+      <div id="zone-tactile"></div>
+      <div id="joystick"><div id="joystick-bouton"></div></div>
+      <div id="t-pause" class="t-btn" role="button" aria-label="Pause"><span class="icone-pause"></span></div>
+      <div id="t-arme" class="t-btn" role="button" aria-label="Changer d'arme">ARME</div>
+      <div id="t-recharge" class="t-btn" role="button" aria-label="Recharger">R</div>
+      <div id="t-saut" class="t-btn" role="button" aria-label="Sauter">SAUT</div>
+      <div id="t-tir" class="t-btn" role="button" aria-label="Tirer">TIR</div>
+    </div>
   </div>
 
   <!-- Écrans -->
@@ -52,7 +65,7 @@
     <p class="sous-titre">Survis aux vagues d'ennemis le plus longtemps possible.</p>
     <button id="btn-jouer">Jouer</button>
     <p id="record-menu"></p>
-    <div class="commandes">
+    <div class="commandes commandes-pc">
       <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
       <div><kbd>Souris</kbd><span>Viser</span></div>
       <div><kbd>Clic gauche</kbd><span>Tirer</span></div>
@@ -62,7 +75,16 @@
       <div><kbd>1</kbd> <kbd>2</kbd> / <kbd>Molette</kbd><span>Changer d'arme</span></div>
       <div><kbd>Échap</kbd><span>Pause</span></div>
     </div>
-    <p class="note">Clavier et souris requis.</p>
+    <div class="commandes commandes-tactiles">
+      <div><kbd>Joystick gauche</kbd><span>Se déplacer</span></div>
+      <div><kbd>À fond vers l'avant</kbd><span>Sprinter</span></div>
+      <div><kbd>Glisser à droite</kbd><span>Viser</span></div>
+      <div><kbd>TIR</kbd><span>Tirer (glisser dessus pour viser)</span></div>
+      <div><kbd>SAUT</kbd> <kbd>R</kbd> <kbd>ARME</kbd><span>Sauter, recharger, changer</span></div>
+      <div><kbd>❚❚</kbd><span>Pause</span></div>
+    </div>
+    <p class="note note-pc">Fonctionne aussi sur téléphone et tablette.</p>
+    <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage.</p>
   </div>
 
   <div id="ecran-pause" class="ecran cache">

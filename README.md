@@ -21,9 +21,11 @@ Les modules JavaScript ne fonctionnent pas en ouvrant directement le fichier : i
 python3 -m http.server 8000
 ```
 
-Puis ouvrir http://localhost:8000 dans le navigateur (clavier + souris requis).
+Puis ouvrir http://localhost:8000 dans le navigateur.
 
-### Commandes
+Pour jouer sur téléphone, lancer le serveur sur l'ordinateur et ouvrir `http://<adresse-IP-de-l'ordinateur>:8000` depuis le téléphone (même réseau Wi-Fi).
+
+### Commandes PC
 
 | Touche | Action |
 | --- | --- |
@@ -36,6 +38,20 @@ Puis ouvrir http://localhost:8000 dans le navigateur (clavier + souris requis).
 | 1 / 2 / molette | Changer d'arme |
 | Échap | Pause |
 
+### Commandes téléphone / tablette
+
+Le mode tactile s'active tout seul sur les écrans tactiles (ou avec `?tactile` dans l'URL).
+
+| Geste | Action |
+| --- | --- |
+| Joystick (moitié gauche de l'écran) | Se déplacer — poussé à fond vers l'avant : sprint |
+| Glisser sur la moitié droite | Viser |
+| Bouton **TIR** | Tirer (on peut glisser dessus pour viser en même temps) |
+| Boutons **SAUT**, **R**, **ARME** | Sauter, recharger, changer d'arme |
+| Bouton pause (en haut à gauche) | Pause |
+
+Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatiquement.
+
 ### Code
 
 | Fichier | Rôle |
@@ -47,6 +63,7 @@ Puis ouvrir http://localhost:8000 dans le navigateur (clavier + souris requis).
 | `src/weapons.js` | Armes, tir par lancer de rayon, rechargement |
 | `src/effects.js` | Étincelles et traînées de balles |
 | `src/pickups.js` | Trousses de soin |
+| `src/touch.js` | Commandes tactiles (joystick, visée, boutons) |
 | `src/hud.js` | Interface (vie, munitions, score, écrans) |
 | `src/audio.js` | Sons générés avec la Web Audio API |
 

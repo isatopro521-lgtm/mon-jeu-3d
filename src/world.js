@@ -69,7 +69,7 @@ function textureMur() {
   });
 }
 
-export function creerMonde(scene) {
+export function creerMonde(scene, { tailleOmbres = 2048 } = {}) {
   const obstacles = []; // meshes qui bloquent la vue et les balles
   const boites = [];    // Box3 pour les collisions
 
@@ -81,7 +81,7 @@ export function creerMonde(scene) {
   const soleil = new THREE.DirectionalLight(0xffdcb0, 2.4);
   soleil.position.set(18, 35, 12);
   soleil.castShadow = true;
-  soleil.shadow.mapSize.set(2048, 2048);
+  soleil.shadow.mapSize.set(tailleOmbres, tailleOmbres);
   const ombre = soleil.shadow.camera;
   ombre.left = ombre.bottom = -DEMI_ARENE - 2;
   ombre.right = ombre.top = DEMI_ARENE + 2;

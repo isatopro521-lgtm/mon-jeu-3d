@@ -24,6 +24,7 @@ export class Joueur {
     this.position = new THREE.Vector3(); // position des pieds
     this.vitesse = new THREE.Vector3();
     this.touches = new Set();
+    this.entree = { x: 0, y: 0, saut: false, sprint: false }; // commandes tactiles
     this.vieMax = VIE_MAX;
     this.balancement = 0;
     this.secousse = 0;
@@ -46,7 +47,12 @@ export class Joueur {
     this.secousse = 0;
     this.camera.quaternion.identity(); // regarde vers le centre (-z)
     this.touches.clear();
+    this.relacherEntree();
     this.majCamera();
+  }
+
+  relacherEntree() {
+    Object.assign(this.entree, { x: 0, y: 0, saut: false, sprint: false });
   }
 
   get mort() { return this.vie <= 0; }
@@ -64,8 +70,9 @@ export class Joueur {
 
   update(dt) {
     const t = this.touches;
-    const av = (t.has('KeyW') || t.has('ArrowUp') ? 1 : 0) - (t.has('KeyS') || t.has('ArrowDown') ? 1 : 0);
-    const dr = (t.has('KeyD') || t.has('ArrowRight') ? 1 : 0) - (t.has('KeyA') || t.has('ArrowLeft') ? 1 : 0);
+    const e = this.entree;
+    const av = (t.has('KeyW') || t.has('ArrowUp') ? 1 : 0) - (t.has('KeyS') || t.has('ArrowDown') ? 1 : 0) + e.y;
+    const dr = (t.has('KeyD') || t.has('ArrowRight') ? 1 : 0) - (t.has('KeyA') || t.has('ArrowLeft') ? 1 : 0) + e.x;
 
     // Direction voulue dans le plan horizontal, selon l'orientation de la caméra
     this.camera.getWorldDirection(_avant);
@@ -73,8 +80,8 @@ export class Joueur {
     _avant.normalize();
     _droite.crossVectors(_avant, HAUT);
     _souhait.set(0, 0, 0).addScaledVector(_avant, av).addScaledVector(_droite, dr);
-    if (_souhait.lengthSq() > 0) _souhait.normalize();
-    const sprint = (t.has('ShiftLeft') || t.has('ShiftRight')) && av > 0;
+    if (_souhait.lengthSq() > 1) _souhait.normalize(); // le joystick garde une vitesse progressive
+    const sprint = (t.has('ShiftLeft') || t.has('ShiftRight') || e.sprint) && av > 0;
     _souhait.multiplyScalar(VITESSE * (sprint ? MULT_SPRINT : 1));
 
     // Accélération douce (moins de contrôle en l'air)
@@ -82,7 +89,7 @@ export class Joueur {
     this.vitesse.x += (_souhait.x - this.vitesse.x) * f;
     this.vitesse.z += (_souhait.z - this.vitesse.z) * f;
 
-    if (t.has('Space') && this.auSol) {
+    if ((t.has('Space') || e.saut) && this.auSol) {
       this.vitesse.y = SAUT;
       this.auSol = false;
     }
