@@ -1,0 +1,38 @@
+{
+  "id": "./",
+  "name": "NEXUS FRONTIER",
+  "short_name": "Nexus",
+  "description": "FPS tactique et survie : défends l'avant-poste Nexus contre des vagues de soldats et de mechs-araignées. Jouable sur téléphone, tablette et ordinateur, même hors ligne.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#14171b",
+  "theme_color": "#14171b",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/apple-touch-icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "screenshots": [
+    {
+      "src": "captures/capture-menu.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Menu de NEXUS FRONTIER au-dessus de l'avant-poste"
+    },
+    {
+      "src": "captures/capture-combat.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Combat contre une vague d'ennemis dans l'arène"
+    }
+  ]
+}

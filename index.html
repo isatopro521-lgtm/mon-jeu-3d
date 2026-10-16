@@ -5,9 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Nexus">
+  <meta name="application-name" content="NEXUS FRONTIER">
   <title>NEXUS FRONTIER — FPS tactique &amp; survie</title>
   <meta name="description" content="NEXUS FRONTIER : FPS tactique et survie dans le navigateur (PC et téléphone).">
   <meta name="theme-color" content="#14171b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     {
@@ -126,6 +133,12 @@
         <button id="btn-classement" class="secondaire">Classement</button>
       </div>
       <button class="secondaire btn-qualite" type="button">Qualité : Auto</button>
+      <div id="installer" class="installer cache" role="region" aria-label="Installer le jeu">
+        <svg class="installer-logo" aria-hidden="true"><use href="#logo"/></svg>
+        <span id="installer-texte"></span>
+        <button id="btn-installer" type="button" class="cache">Installer le jeu</button>
+        <button id="btn-installer-fermer" type="button" class="installer-fermer" aria-label="Fermer">×</button>
+      </div>
       <p id="record-menu"></p>
       <div class="commandes commandes-pc">
         <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
@@ -149,6 +162,8 @@
       </div>
       <p class="note note-pc">Armure : absorbe les dégâts avant la vie (+25 par vague). Qualité Auto : baisse les graphismes si le jeu rame. Fonctionne aussi sur téléphone et tablette.</p>
       <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage. Si le jeu rame, choisis « Qualité : Basse ».</p>
+      <p class="note note-app">Installe le jeu comme une app pour jouer en plein écran, même hors ligne.
+        <a class="lien-discret" href="confidentialite.html">Confidentialité</a></p>
     </div>
   </div>
 

@@ -98,7 +98,7 @@ html, body {
 #restants { font-size: 12px; letter-spacing: 2px; color: var(--orange-2); }
 
 #score-bloc {
-  position: absolute; top: 14px; left: 20px;
+  position: absolute; top: calc(14px + env(safe-area-inset-top, 0px)); left: calc(20px + env(safe-area-inset-left, 0px));
   display: flex; flex-direction: column; line-height: 1.05;
 }
 #score-bloc .etiquette { font-size: 11px; letter-spacing: 3px; color: var(--texte-2); }
@@ -106,7 +106,7 @@ html, body {
 
 /* Minicarte */
 #minicarte {
-  position: absolute; top: 12px; right: 16px; width: 172px;
+  position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(16px + env(safe-area-inset-right, 0px)); width: 172px;
   padding: 6px; background: rgba(14, 17, 21, 0.55);
   border: 1px solid var(--ligne); border-top: 2px solid var(--orange);
 }
@@ -117,7 +117,7 @@ html, body {
 
 /* Vie + armure */
 #bas-gauche {
-  position: absolute; left: 22px; bottom: 22px;
+  position: absolute; left: calc(22px + env(safe-area-inset-left, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   display: flex; align-items: center; gap: 12px;
 }
 .icone-soldat {
@@ -141,7 +141,7 @@ html, body {
 
 /* Arme, munitions, grenades */
 #bas-droite {
-  position: absolute; right: 22px; bottom: 22px; text-align: right;
+  position: absolute; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); text-align: right;
 }
 #arme-nom { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--texte-2); }
 .ligne-arme { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
@@ -451,4 +451,43 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--orange-2); 
 #ips {
   position: fixed; left: 50%; bottom: 4px; transform: translateX(-50%); z-index: 5; pointer-events: none;
   font-size: 11px; letter-spacing: 1px; color: #9fe39f; background: rgba(0, 0, 0, 0.45); padding: 1px 6px;
+}
+
+/* ---------- Installation comme une app (PWA) ---------- */
+.installer {
+  display: flex; align-items: center; gap: 10px; max-width: 520px;
+  padding: 8px 8px 8px 12px; font-size: 14px; line-height: 1.35; text-align: left;
+  background: linear-gradient(90deg, rgba(255, 122, 30, 0.16), rgba(20, 23, 28, 0.75));
+  border: 1px solid rgba(255, 122, 30, 0.45); border-left: 3px solid var(--orange);
+}
+.installer-logo { width: 26px; height: 24px; flex: none; }
+#installer-texte { flex: 1 1 auto; min-width: 0; color: var(--texte); }
+#installer-texte strong { color: var(--orange-2); font-weight: 700; }
+/* Icône « Partager » d'iOS : carré ouvert + flèche vers le haut */
+.ico-partager {
+  display: inline-block; position: relative; width: 11px; height: 10px; margin: 0 2px -1px;
+  border: 1.5px solid var(--orange-2); border-top-color: transparent;
+}
+.ico-partager::before {
+  content: ""; position: absolute; left: 50%; top: -7px; width: 1.5px; height: 11px;
+  background: var(--orange-2); transform: translateX(-50%);
+}
+.ico-partager::after {
+  content: ""; position: absolute; left: 50%; top: -7px; width: 5px; height: 5px;
+  border-left: 1.5px solid var(--orange-2); border-top: 1.5px solid var(--orange-2);
+  transform: translateX(-50%) rotate(45deg); transform-origin: center; margin-top: 0.5px;
+}
+#btn-installer { flex: none; font-size: 14px; letter-spacing: 2px; padding: 9px 20px; min-height: 40px; white-space: nowrap; }
+.installer-fermer {
+  flex: none; width: 36px; height: 36px; padding: 0; font-size: 22px; line-height: 1; letter-spacing: 0;
+  clip-path: none; background: transparent; color: var(--texte-2);
+  box-shadow: 0 0 0 1px rgba(200, 212, 225, 0.3) inset;
+}
+.installer-fermer:hover { color: var(--texte); background: rgba(255, 255, 255, 0.08); filter: none; }
+.note-app { font-size: 12px; }
+.lien-discret { color: var(--texte-2); text-decoration: underline; text-underline-offset: 2px; margin-left: 6px; }
+.lien-discret:hover, .lien-discret:focus-visible { color: var(--orange-2); }
+@media (max-height: 500px) {
+  .installer { padding: 5px 6px 5px 10px; font-size: 13px; }
+  .installer-fermer { width: 32px; height: 32px; }
 }

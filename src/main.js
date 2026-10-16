@@ -13,6 +13,7 @@ import { ControlesTactiles, estTactile, pleinEcranPaysage } from './touch.js';
 import { classement, lirePseudo, nettoyerPseudo } from './scores.js';
 import { TempeteNexus } from './tempete.js';
 import { Qualite } from './qualite.js';
+import { initInstallation } from './installation.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
@@ -364,6 +365,16 @@ $('btn-retour').addEventListener('click', () => hud.ecran('menu'));
 
 hud.record(partie.record);
 hud.ecran('menu');
+
+// ---------- App installable (PWA) ----------
+initInstallation();
+// Service worker (jeu hors ligne) : pas en ?debug pour ne pas gêner les tests
+if ('serviceWorker' in navigator && !new URLSearchParams(location.search).has('debug')) {
+  const enregistrer = () => navigator.serviceWorker.register('sw.js')
+    .catch(() => { /* pas de hors-ligne, le jeu marche quand même */ });
+  if (document.readyState === 'complete') enregistrer();
+  else addEventListener('load', enregistrer, { once: true });
+}
 
 // ---------- Boucle de jeu ----------
 const horloge = new THREE.Clock();

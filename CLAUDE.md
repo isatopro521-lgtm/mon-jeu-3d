@@ -29,3 +29,4 @@ prendre à sa place (compte à créer, clé secrète, suppression de données…
   (`window.jeu` expose l'état du jeu ; `?tactile` force le mode téléphone).
 - Three.js est inclus dans `lib/three/` : pas besoin de réseau.
 - `bash scripts/zip-itch.sh` fabrique le zip pour itch.io.
+- Tout nouveau fichier `src/*.js` doit être ajouté à la liste `FICHIERS` de `sw.js` (mode hors ligne) ; `bash scripts/verifier-sw.sh` le contrôle, et la publication échoue sinon.
