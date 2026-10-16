@@ -1,0 +1,48 @@
+# Publie le jeu sur GitHub Pages à chaque modification de la branche main.
+# À activer une fois : Settings → Pages → Source : « GitHub Actions ».
+name: Publier le jeu
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Préparer les fichiers du jeu
+        run: |
+          mkdir _site
+          cp -r index.html style.css src lib _site/
+
+      - name: Fabriquer le zip pour itch.io
+        run: bash scripts/zip-itch.sh
+
+      - name: Garder le zip itch.io (onglet « Artifacts » de cette exécution)
+        uses: actions/upload-artifact@v4
+        with:
+          name: arene-itch
+          path: dist/arene-itch.zip
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploiement
+        uses: actions/deploy-pages@v4
