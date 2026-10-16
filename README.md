@@ -10,7 +10,10 @@ Survis à des vagues d'ennemis de plus en plus nombreuses dans une arène, en vu
   - **Tireur** (bleu) : garde ses distances, se décale sur le côté et tire des projectiles ;
   - **Brute** (violet) : lente, très résistante, frappe fort (à partir de la vague 3).
 - **2 armes** : fusil d'assaut automatique et fusil à pompe (9 plombs).
-- Tirs à la tête ×2 dégâts, trousses de soin lâchées par les ennemis, bonus de fin de vague.
+- **Grenades** : lancées en cloche, elles rebondissent sur le sol et le décor puis explosent après 2 s
+  (dégâts de zone, bloqués par les murs ; attention à ne pas rester trop près).
+  3 au départ, 5 maximum, +1 à chaque vague terminée, et parfois lâchées par les ennemis.
+- Tirs à la tête ×2 dégâts, trousses de soin et grenades lâchées par les ennemis, bonus de fin de vague.
 - Score et record (gardé dans le navigateur).
 
 ### Lancer le jeu
@@ -95,6 +98,7 @@ Si ça arrive, on peut supprimer la ligne dans *Table Editor* sur Supabase.
 | Maj | Sprinter |
 | R | Recharger |
 | 1 / 2 / molette | Changer d'arme |
+| G / clic droit | Lancer une grenade |
 | Échap | Pause |
 
 ### Commandes téléphone / tablette
@@ -107,6 +111,7 @@ Le mode tactile s'active tout seul sur les écrans tactiles (ou avec `?tactile` 
 | Glisser sur la moitié droite | Viser |
 | Bouton **TIR** | Tirer (on peut glisser dessus pour viser en même temps) |
 | Boutons **SAUT**, **R**, **ARME** | Sauter, recharger, changer d'arme |
+| Bouton **GRENADE** | Lancer une grenade (dans la direction visée) |
 | Bouton pause (en haut à gauche) | Pause |
 
 Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatiquement.
@@ -120,8 +125,9 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/world.js` | Arène, éclairage, obstacles |
 | `src/enemies.js` | Ennemis, IA, projectiles |
 | `src/weapons.js` | Armes, tir par lancer de rayon, rechargement |
+| `src/grenades.js` | Grenades : lancer, rebonds, explosion à dégâts de zone, effets |
 | `src/effects.js` | Étincelles et traînées de balles |
-| `src/pickups.js` | Trousses de soin |
+| `src/pickups.js` | Bonus à ramasser (trousses de soin, grenades) |
 | `src/touch.js` | Commandes tactiles (joystick, visée, boutons) |
 | `src/scores.js` | Classement (mondial, partagé ou local) |
 | `src/config.js` | Réglages du classement mondial |

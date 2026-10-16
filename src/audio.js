@@ -66,4 +66,15 @@ export const sons = {
   apparition: () => ton(120, 480, 0.3, 0.06, 'sine'),
   vague: () => [440, 554, 659, 880].forEach((f, i) => ton(f, f, 0.16, 0.13, 'triangle', i * 0.11)),
   soin: () => { ton(500, 1000, 0.2, 0.15, 'sine'); ton(750, 1500, 0.2, 0.1, 'sine', 0.1); },
+  // Goupille puis souffle du lancer
+  lancerGrenade: () => { ton(2200, 1900, 0.03, 0.08, 'square'); bruit(0.18, 1500, 0.25, 0.05, 'bandpass'); },
+  rebondGrenade: (force = 0.5) => ton(1100, 800, 0.05, 0.03 + 0.12 * force, 'triangle'),
+  // Explosion grave : grondement filtré + chute de fréquence ; `k` règle le volume selon la distance
+  explosion: (k = 1) => {
+    bruit(1.4, 320, 1.3 * k);
+    bruit(0.35, 2400, 0.5 * k);
+    ton(95, 28, 0.9, 0.6 * k, 'sine');
+    ton(60, 22, 1.3, 0.35 * k, 'triangle', 0.03);
+  },
+  ramasserGrenade: () => { ton(2000, 1800, 0.03, 0.08, 'square'); ton(420, 840, 0.14, 0.12, 'triangle', 0.04); },
 };

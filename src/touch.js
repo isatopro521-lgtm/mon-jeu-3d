@@ -17,10 +17,10 @@ export const estTactile =
  * Commandes tactiles :
  *  - moitié gauche de l'écran : joystick virtuel (apparaît sous le doigt)
  *  - moitié droite : glisser pour viser
- *  - boutons : tir (on peut aussi viser en glissant dessus), saut, recharge, arme, pause
+ *  - boutons : tir (on peut aussi viser en glissant dessus), saut, recharge, arme, grenade, pause
  */
 export class ControlesTactiles {
-  constructor(camera, { onTir, onSaut, onRecharge, onArme, onPause }) {
+  constructor(camera, { onTir, onSaut, onRecharge, onArme, onGrenade, onPause }) {
     this.camera = camera;
     this.axe = { x: 0, y: 0 }; // x : droite, y : avant
     this.sprint = false;
@@ -81,6 +81,7 @@ export class ControlesTactiles {
     appui('t-saut', () => onSaut(true), () => onSaut(false));
     appui('t-recharge', onRecharge);
     appui('t-arme', onArme);
+    appui('t-grenade', onGrenade);
     appui('t-pause', onPause);
   }
 
