@@ -36,8 +36,8 @@ jobs:
       - name: Garder le zip itch.io (onglet « Artifacts » de cette exécution)
         uses: actions/upload-artifact@v4
         with:
-          name: arene-itch
-          path: dist/arene-itch.zip
+          name: nexus-frontier-itch
+          path: dist/nexus-frontier-itch.zip
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -1,20 +1,35 @@
 # mon-jeu-3d
 Mon jeux 3D à la première personne 
 
-## ARÈNE — jeu de combat FPS
+## NEXUS FRONTIER — FPS tactique & survie
 
-Survis à des vagues d'ennemis de plus en plus nombreuses dans une arène, en vue à la première personne.
+Défends l'avant-poste Nexus contre des vagues d'ennemis de plus en plus nombreuses, en vue à la première personne,
+dans le navigateur (PC et téléphone).
+
+**Style visuel** : fin d'après-midi en montagne (heure dorée) — ciel bleu profond avec nuages, soleil bas,
+montagnes enneigées, forêt de sapins, buissons rouges, rochers moussus, lac avec cascade, avant-postes
+industriels aux fenêtres éclairées, antennes, bannières rouges au logo triangle, et une **mégastructure** :
+une tour géante traversée par un anneau qui tourne lentement dans le ciel. Palette acier très sombre +
+accents orange, rouge pour les factions. Tout est généré dans le code (géométries et textures procédurales,
+aucune image à télécharger).
 
 - **3 types d'ennemis** avec IA (patrouille → alerte → poursuite → attaque, champ de vision et ligne de vue) :
-  - **Soldat** (rouge) : rapide, attaque au corps à corps ;
-  - **Tireur** (bleu) : garde ses distances, se décale sur le côté et tire des projectiles ;
-  - **Brute** (violet) : lente, très résistante, frappe fort (à partir de la vague 3).
-- **2 armes** : fusil d'assaut automatique et fusil à pompe (9 plombs).
+  - **Soldat** (visière rouge) : rapide, attaque au corps à corps (coup de crosse) ;
+  - **Tireur** (visière bleue) : garde ses distances, se décale sur le côté et tire ;
+  - **Mech-araignée** (yeux rouges, à partir de la vague 3) : lent, très blindé, se cabre et écrase.
+- **2 armes** : fusil d'assaut automatique à lunette et fusil à pompe (9 plombs).
+  Munitions : chargeur + **réserve** (affichées « 30 | 120 ») ; caisses de munitions lâchées par les ennemis,
+  réserve remise au moins au niveau de départ à chaque fin de vague.
+- **Armure** : 50 au départ, elle encaisse les dégâts avant la vie ; +25 à chaque vague terminée (max 100).
 - **Grenades** : lancées en cloche, elles rebondissent sur le sol et le décor puis explosent après 2 s
   (dégâts de zone, bloqués par les murs ; attention à ne pas rester trop près).
   3 au départ, 5 maximum, +1 à chaque vague terminée, et parfois lâchées par les ennemis.
-- Tirs à la tête ×2 dégâts, trousses de soin et grenades lâchées par les ennemis, bonus de fin de vague.
-- Score et record (gardé dans le navigateur).
+- **Tempête Nexus** : toutes les 5 vagues, le ciel vire au rouge, un vortex tourne au-dessus de l'arène,
+  des éclairs frappent les environs et il pleut, le temps de la vague.
+- Tirs à la tête ×2 dégâts (casque/visière, tourelle du mech), trousses de soin, bonus de fin de vague.
+- Interface : boussole, minicarte « Zone Nexus » (ennemis en rouge, compte à rebours entre les vagues),
+  vie + armure, munitions, grenades.
+- Score et record (gardé dans le navigateur), classement en ligne.
 
 ### Lancer le jeu
 
@@ -122,17 +137,22 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | --- | --- |
 | `src/main.js` | Rendu, boucle de jeu, vagues, états de la partie |
 | `src/player.js` | Contrôles FPS, saut, gravité, collisions |
-| `src/world.js` | Arène, éclairage, obstacles |
-| `src/enemies.js` | Ennemis, IA, projectiles |
+| `src/world.js` | Arène : sol, enceinte (grillage, miradors, conteneurs), tours, sacs de sable, caisses ; collisions |
+| `src/decor.js` | Décor autour : terrain, montagnes, forêt, lac, cascade, avant-postes, mégastructure |
+| `src/ciel.js` | Ciel (dégradé + soleil), nuages, brouillard, lumières, reflets |
+| `src/textures.js` | Textures procédurales (canvas) et logo |
+| `src/tempete.js` | Tempête Nexus (ciel rouge, vortex, éclairs, pluie) |
+| `src/enemies.js` | Ennemis (soldats, mech-araignée), IA, projectiles |
 | `src/weapons.js` | Armes, tir par lancer de rayon, rechargement |
 | `src/grenades.js` | Grenades : lancer, rebonds, explosion à dégâts de zone, effets |
 | `src/effects.js` | Étincelles et traînées de balles |
-| `src/pickups.js` | Bonus à ramasser (trousses de soin, grenades) |
+| `src/pickups.js` | Bonus à ramasser (trousses de soin, grenades, munitions) |
 | `src/touch.js` | Commandes tactiles (joystick, visée, boutons) |
 | `src/scores.js` | Classement (mondial, partagé ou local) |
 | `src/config.js` | Réglages du classement mondial |
-| `src/hud.js` | Interface (vie, munitions, score, écrans) |
+| `src/hud.js` | Interface (boussole, minicarte, vie/armure, munitions, score, écrans) |
 | `src/audio.js` | Sons générés avec la Web Audio API |
+| `src/utils.js` | Collisions, bruit procédural, fusion de géométries |
 
 `lib/three/` contient Three.js 0.160.0. `scripts/zip-itch.sh` fabrique le zip pour itch.io.
 

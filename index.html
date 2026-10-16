@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Arène FPS</title>
+  <title>NEXUS FRONTIER — FPS tactique &amp; survie</title>
+  <meta name="description" content="NEXUS FRONTIER : FPS tactique et survie dans le navigateur (PC et téléphone).">
+  <meta name="theme-color" content="#14171b">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     {
@@ -19,30 +21,77 @@
 <body>
   <div id="jeu"></div>
 
+  <!-- Logo (réutilisé dans le menu et les écrans) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="grad-metal" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f3f5f7"/><stop offset="0.48" stop-color="#a7afb8"/>
+        <stop offset="0.52" stop-color="#5f666f"/><stop offset="1" stop-color="#c9cfd5"/>
+      </linearGradient>
+      <symbol id="logo" viewBox="0 0 100 90">
+        <polygon points="2,6 34,6 50,42 66,6 98,6 50,88" fill="url(#grad-metal)"/>
+        <polygon points="12,12 30,12 50,56 70,12 88,12 50,76" fill="none" stroke="#1b1e23" stroke-width="2.5"/>
+        <polygon points="50,34 39,10 61,10" fill="#ff7a1e"/>
+      </symbol>
+      <symbol id="ico-soldat" viewBox="0 0 48 48">
+        <circle cx="21" cy="8" r="5"/>
+        <path d="M14 15h12l3 5 13-2 1 3-14 4-2 8 5 13h-5l-5-11-3 11h-5l3-17-4 3-4-2 4-10z"/>
+      </symbol>
+      <symbol id="ico-coeur" viewBox="0 0 24 24"><path d="M12 21 3 12a5.5 5.5 0 0 1 9-6 5.5 5.5 0 0 1 9 6z"/></symbol>
+      <symbol id="ico-bouclier" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3.4 9.5 8 11 4.6-1.5 8-6 8-11V5z"/></symbol>
+      <symbol id="ico-fusil" viewBox="0 0 120 36">
+        <path d="M2 14h18l4-4h30l2-4h22v4h14l2 3h22v4h-22l-2 2h-6v3h-8l-2 9h-8l1-9h-8l-3 12h-9l3-12h-12l-6 6H8l-2-6H2z"/>
+        <rect x="56" y="1" width="28" height="5" rx="2"/>
+      </symbol>
+      <symbol id="ico-pompe" viewBox="0 0 120 36">
+        <path d="M2 16h22l6-4h36v-2h52v5H68v4h30v5H66l-3 2h-6l-3 10h-9l3-10H32l-8 6H8l-2-6H2z"/>
+      </symbol>
+    </defs>
+  </svg>
+
   <!-- Interface pendant la partie -->
   <div id="hud" class="cache">
     <div id="vignette"></div>
+    <div id="eclair"></div>
     <div id="viseur">
       <span class="h"></span><span class="v"></span>
       <div id="marqueur"><i></i><i></i><i></i><i></i></div>
     </div>
 
+    <div id="boussole"><div id="boussole-bande"></div><div id="boussole-cap"></div></div>
     <div id="haut">
       <div id="vague">Vague 1</div>
       <div id="restants"></div>
     </div>
-    <div id="score">0</div>
+    <div id="score-bloc"><span class="etiquette">SCORE</span><span id="score">0</span></div>
+
+    <div id="minicarte">
+      <canvas id="carte" width="160" height="160"></canvas>
+      <div id="carte-zone">Zone Nexus</div>
+      <div id="carte-info"><span class="losange"></span><span id="carte-texte"></span></div>
+    </div>
 
     <div id="bas-gauche">
-      <div class="etiquette">VIE</div>
-      <div id="barre-vie"><div id="vie-remplissage"></div></div>
-      <div id="vie-texte">100</div>
+      <svg class="icone-soldat"><use href="#ico-soldat"/></svg>
+      <div class="jauges">
+        <div class="jauge">
+          <svg class="ico"><use href="#ico-coeur"/></svg><span id="vie-texte">100</span>
+          <div id="barre-vie" class="barre"><div id="vie-remplissage"></div></div>
+        </div>
+        <div class="jauge armure">
+          <svg class="ico"><use href="#ico-bouclier"/></svg><span id="armure-texte">50</span>
+          <div id="barre-armure" class="barre"><div id="armure-remplissage"></div></div>
+        </div>
+      </div>
     </div>
 
     <div id="bas-droite">
       <div id="arme-nom">Fusil d'assaut</div>
-      <div id="munitions"><span id="mun-chargeur">30</span><span id="mun-max"> / 30</span></div>
-      <div id="grenades" title="Grenades"><span class="icone-grenade"></span><span id="grenades-nb">× 3</span></div>
+      <div class="ligne-arme">
+        <svg id="icone-arme"><use href="#ico-fusil"/></svg>
+        <div id="munitions"><span id="mun-chargeur">30</span><span class="sep"></span><span id="mun-reserve">120</span></div>
+        <div id="grenades" title="Grenades"><span class="icone-grenade"></span><span id="grenades-nb">3</span></div>
+      </div>
       <div id="recharge-texte"></div>
     </div>
 
@@ -62,61 +111,77 @@
   </div>
 
   <!-- Écrans -->
-  <div id="ecran-menu" class="ecran">
-    <h1>ARÈNE</h1>
-    <p class="sous-titre">Survis aux vagues d'ennemis le plus longtemps possible.</p>
-    <div class="boutons">
-      <button id="btn-jouer">Jouer</button>
-      <button id="btn-classement" class="secondaire">Classement</button>
+  <div id="ecran-menu" class="ecran ecran-menu">
+    <div class="panneau-menu">
+      <div class="titre-jeu">
+        <svg class="logo"><use href="#logo"/></svg>
+        <h1><span class="nexus">NEXUS</span><span class="frontier">FRONTIER</span></h1>
+        <p class="sous-titre">FPS tactique &amp; survie</p>
+      </div>
+      <p class="accroche">Défends l'avant-poste Nexus contre des vagues de soldats et de mechs-araignées.
+        Toutes les 5 vagues, la <strong>Tempête Nexus</strong> s'abat sur l'arène.</p>
+      <div class="boutons">
+        <button id="btn-jouer">Jouer</button>
+        <button id="btn-classement" class="secondaire">Classement</button>
+      </div>
+      <p id="record-menu"></p>
+      <div class="commandes commandes-pc">
+        <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
+        <div><kbd>Souris</kbd><span>Viser</span></div>
+        <div><kbd>Clic gauche</kbd><span>Tirer</span></div>
+        <div><kbd>Espace</kbd><span>Sauter</span></div>
+        <div><kbd>Maj</kbd><span>Sprinter</span></div>
+        <div><kbd>R</kbd><span>Recharger</span></div>
+        <div><kbd>1</kbd> <kbd>2</kbd> / <kbd>Molette</kbd><span>Changer d'arme</span></div>
+        <div><kbd>G</kbd> / <kbd>Clic droit</kbd><span>Lancer une grenade</span></div>
+        <div><kbd>Échap</kbd><span>Pause</span></div>
+      </div>
+      <div class="commandes commandes-tactiles">
+        <div><kbd>Joystick gauche</kbd><span>Se déplacer</span></div>
+        <div><kbd>À fond vers l'avant</kbd><span>Sprinter</span></div>
+        <div><kbd>Glisser à droite</kbd><span>Viser</span></div>
+        <div><kbd>TIR</kbd><span>Tirer (glisser dessus pour viser)</span></div>
+        <div><kbd>SAUT</kbd> <kbd>R</kbd> <kbd>ARME</kbd><span>Sauter, recharger, changer</span></div>
+        <div><kbd>GRENADE</kbd><span>Lancer une grenade</span></div>
+        <div><kbd>❚❚</kbd><span>Pause</span></div>
+      </div>
+      <p class="note note-pc">Armure : absorbe les dégâts avant la vie (+25 par vague). Fonctionne aussi sur téléphone et tablette.</p>
+      <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage.</p>
     </div>
-    <p id="record-menu"></p>
-    <div class="commandes commandes-pc">
-      <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
-      <div><kbd>Souris</kbd><span>Viser</span></div>
-      <div><kbd>Clic gauche</kbd><span>Tirer</span></div>
-      <div><kbd>Espace</kbd><span>Sauter</span></div>
-      <div><kbd>Maj</kbd><span>Sprinter</span></div>
-      <div><kbd>R</kbd><span>Recharger</span></div>
-      <div><kbd>1</kbd> <kbd>2</kbd> / <kbd>Molette</kbd><span>Changer d'arme</span></div>
-      <div><kbd>G</kbd> / <kbd>Clic droit</kbd><span>Lancer une grenade</span></div>
-      <div><kbd>Échap</kbd><span>Pause</span></div>
-    </div>
-    <div class="commandes commandes-tactiles">
-      <div><kbd>Joystick gauche</kbd><span>Se déplacer</span></div>
-      <div><kbd>À fond vers l'avant</kbd><span>Sprinter</span></div>
-      <div><kbd>Glisser à droite</kbd><span>Viser</span></div>
-      <div><kbd>TIR</kbd><span>Tirer (glisser dessus pour viser)</span></div>
-      <div><kbd>SAUT</kbd> <kbd>R</kbd> <kbd>ARME</kbd><span>Sauter, recharger, changer</span></div>
-      <div><kbd>GRENADE</kbd><span>Lancer une grenade</span></div>
-      <div><kbd>❚❚</kbd><span>Pause</span></div>
-    </div>
-    <p class="note note-pc">Fonctionne aussi sur téléphone et tablette.</p>
-    <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage.</p>
   </div>
 
   <div id="ecran-pause" class="ecran cache">
-    <h2>Pause</h2>
-    <button id="btn-reprendre">Reprendre</button>
+    <div class="panneau">
+      <svg class="logo petit"><use href="#logo"/></svg>
+      <h2>Pause</h2>
+      <button id="btn-reprendre">Reprendre</button>
+    </div>
   </div>
 
   <div id="ecran-fin" class="ecran cache">
-    <h2>Tu es tombé au combat</h2>
-    <p id="fin-stats"></p>
-    <form id="form-score" autocomplete="off">
-      <label for="pseudo">Ton pseudo</label>
-      <input id="pseudo" name="pseudo" maxlength="16" placeholder="Ton pseudo" enterkeyhint="send">
-      <button type="submit" id="btn-enregistrer" class="secondaire">Enregistrer mon score</button>
-    </form>
-    <p id="score-etat" class="note" role="status"></p>
-    <ol id="fin-classement" class="classement"></ol>
-    <button id="btn-rejouer">Rejouer</button>
+    <div class="panneau">
+      <svg class="logo petit"><use href="#logo"/></svg>
+      <h2>Tombé au combat</h2>
+      <p id="fin-stats"></p>
+      <form id="form-score" autocomplete="off">
+        <label for="pseudo">Ton pseudo</label>
+        <input id="pseudo" name="pseudo" maxlength="16" placeholder="Ton pseudo" enterkeyhint="send">
+        <button type="submit" id="btn-enregistrer" class="secondaire">Enregistrer mon score</button>
+      </form>
+      <p id="score-etat" class="note" role="status"></p>
+      <ol id="fin-classement" class="classement"></ol>
+      <button id="btn-rejouer">Rejouer</button>
+    </div>
   </div>
 
   <div id="ecran-classement" class="ecran cache">
-    <h2>Meilleurs scores</h2>
-    <p id="classement-source" class="note"></p>
-    <ol id="classement-liste" class="classement"></ol>
-    <button id="btn-retour" class="secondaire">Retour</button>
+    <div class="panneau">
+      <svg class="logo petit"><use href="#logo"/></svg>
+      <h2>Meilleurs scores</h2>
+      <p id="classement-source" class="note"></p>
+      <ol id="classement-liste" class="classement"></ol>
+      <button id="btn-retour" class="secondaire">Retour</button>
+    </div>
   </div>
 
   <script type="module" src="src/main.js"></script>

@@ -40,10 +40,33 @@ function modeleBonusGrenade() {
   return g;
 }
 
-const MODELES = { soin: modeleSoin, grenade: modeleBonusGrenade };
+// Caisse de munitions : boîte acier sombre, liseré orange, cartouches sur le dessus
+const geoCaisseMun = new THREE.BoxGeometry(0.62, 0.3, 0.4);
+const geoBandeMun = new THREE.BoxGeometry(0.64, 0.05, 0.42);
+const geoCartouche = new THREE.CylinderGeometry(0.03, 0.03, 0.16, 8);
+const matCaisseMun = new THREE.MeshStandardMaterial({ color: 0x2b2f35, metalness: 0.6, roughness: 0.45 });
+const matBandeMun = new THREE.MeshBasicMaterial({ color: 0xff7a1e });
+const matCartouche = new THREE.MeshStandardMaterial({ color: 0xd9a540, metalness: 0.8, roughness: 0.3, emissive: 0x2a1a00 });
+
+function modeleMunitions() {
+  const g = new THREE.Group();
+  const caisse = new THREE.Mesh(geoCaisseMun, matCaisseMun);
+  caisse.castShadow = true;
+  const bande = new THREE.Mesh(geoBandeMun, matBandeMun);
+  bande.position.y = 0.05;
+  g.add(caisse, bande);
+  for (let i = 0; i < 5; i++) {
+    const c = new THREE.Mesh(geoCartouche, matCartouche);
+    c.position.set(-0.2 + i * 0.1, 0.22, 0);
+    g.add(c);
+  }
+  return g;
+}
+
+const MODELES = { soin: modeleSoin, grenade: modeleBonusGrenade, munitions: modeleMunitions };
 
 /**
- * Bonus lâchés par les ennemis : trousses de soin ('soin') et grenades ('grenade').
+ * Bonus lâchés par les ennemis : trousses de soin ('soin'), grenades ('grenade') et munitions ('munitions').
  * `update(dt, joueur, ramasser)` : `ramasser(type)` renvoie true si le joueur le prend.
  */
 export class Bonus {

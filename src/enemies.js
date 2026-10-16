@@ -1,13 +1,25 @@
 import * as THREE from 'three';
-import { clamp, collisionCercleBoites } from './utils.js';
+import { clamp, collisionCercleBoites, Assemblage, fusionner } from './utils.js';
 import { DEMI_ARENE } from './world.js';
 import { sons } from './audio.js';
 
 // Paramètres des types d'ennemis
+// taille : « poids » (recul encaissé) ; echelle : taille du modèle ; rayon/hauteur : collision ;
+// yeux : hauteur des yeux (ligne de vue) ; visiere/accent : couleurs du modèle.
 export const TYPES = {
-  soldat: { vie: 60, vitesse: 4.6, degats: 10, portee: 1.7, recharge: 1.0, couleur: 0xd8443a, taille: 1, points: 100, distance: false },
-  tireur: { vie: 50, vitesse: 3.4, degats: 12, portee: 24, recharge: 1.8, couleur: 0x3a86d8, taille: 0.95, points: 150, distance: true },
-  brute: { vie: 320, vitesse: 2.5, degats: 30, portee: 2.4, recharge: 1.6, couleur: 0x8c3ad8, taille: 1.45, points: 400, distance: false },
+  soldat: {
+    vie: 60, vitesse: 4.6, degats: 10, portee: 1.7, recharge: 1.0, couleur: 0xff4a3a, taille: 1, points: 100, distance: false,
+    modele: 'soldat', echelle: 1, rayon: 0.45, hauteur: 1.95, yeux: 1.76, visiere: 0xff2a1a, accent: 0x8e2a22,
+  },
+  tireur: {
+    vie: 50, vitesse: 3.4, degats: 12, portee: 24, recharge: 1.8, couleur: 0x3a9cff, taille: 0.95, points: 150, distance: true,
+    modele: 'soldat', echelle: 0.97, rayon: 0.43, hauteur: 1.9, yeux: 1.7, visiere: 0x2aa8ff, accent: 0x24548a,
+  },
+  // La brute est un mech-araignée blindé à 4 pattes
+  brute: {
+    vie: 320, vitesse: 2.5, degats: 30, portee: 2.6, recharge: 1.6, couleur: 0xff5a2a, taille: 1.45, points: 400, distance: false,
+    modele: 'mech', echelle: 1.15, rayon: 1.05, hauteur: 2.7, yeux: 2.3, visiere: 0xff1a0a, accent: 0x6a1c16,
+  },
 };
 
 const VISION = 45;                                   // distance de vue (m)
@@ -18,14 +30,191 @@ const VITESSE_PROJECTILE = 20;
 const DUREE_APPARITION = 0.5;
 const DUREE_ARMEMENT = 0.4;                          // temps avant que le coup au corps à corps ne porte
 
-const geoCorps = new THREE.CapsuleGeometry(0.34, 0.45, 4, 12);
-const geoTete = new THREE.SphereGeometry(0.24, 16, 12);
-const geoJambe = new THREE.BoxGeometry(0.17, 0.52, 0.17).translate(0, -0.26, 0); // pivot à la hanche
-const geoOeil = new THREE.BoxGeometry(0.08, 0.05, 0.04);
-const geoBras = new THREE.BoxGeometry(0.14, 0.62, 0.14).translate(0, -0.26, 0); // pivot à l'épaule
-const geoArme = new THREE.BoxGeometry(0.1, 0.45, 0.1).translate(0, -0.7, 0);
-const matOeil = new THREE.MeshBasicMaterial({ color: 0xffee66 });
-const matArme = new THREE.MeshStandardMaterial({ color: 0x1d1f24, metalness: 0.7, roughness: 0.4 });
+// ---------- Modèles ----------
+// Chaque partie animée est un seul maillage (pièces fusionnées, couleurs de sommets) :
+// peu d'appels de rendu, et un seul matériau par ennemi pour le flash de touche et la disparition.
+const ARMURE = 0x424852, ARMURE_SOMBRE = 0x2b3037, TISSU = 0x2c302e, OLIVE = 0x454635, BOTTE = 0x1a1b1d;
+const boite = new THREE.BoxGeometry(1, 1, 1);
+const sphere = new THREE.SphereGeometry(1, 12, 8);
+const cylindre = new THREE.CylinderGeometry(1, 1, 1, 8);
+const matVisieres = {};
+function matVisiere(couleur) {
+  return (matVisieres[couleur] ??= new THREE.MeshBasicMaterial({ color: couleur }));
+}
+
+function geo(fn, couleurs = true) {
+  const asm = new Assemblage();
+  fn((g, x, y, z, sx, sy, sz, couleur, rot = {}) => asm.ajouter(g, x, y, z, { sx, sy, sz, couleur, ...rot }));
+  return asm.geometrie(couleurs);
+}
+
+// Géométries partagées par tous les soldats (une par type pour les couleurs d'accent)
+const cacheSoldat = {};
+function geosSoldat(t) {
+  if (cacheSoldat[t.accent]) return cacheSoldat[t.accent];
+  const acc = t.accent;
+  const torse = geo((b) => {
+    b(boite, 0, 0.98, 0, 0.36, 0.16, 0.22, TISSU);              // bassin + ceinture
+    b(boite, 0, 0.99, 0.02, 0.38, 0.06, 0.24, ARMURE_SOMBRE);
+    b(boite, 0, 1.15, 0, 0.31, 0.22, 0.2, TISSU);               // ventre
+    b(boite, 0, 1.38, 0, 0.44, 0.3, 0.27, ARMURE);              // gilet pare-balles
+    b(boite, 0, 1.36, 0.13, 0.34, 0.22, 0.05, ARMURE_SOMBRE);   // plaque avant
+    b(boite, 0, 1.43, 0.157, 0.2, 0.025, 0.01, acc);            // bande de faction
+    for (const x of [-0.1, 0, 0.1]) b(boite, x, 1.2, 0.12, 0.08, 0.09, 0.06, OLIVE); // poches
+    b(boite, 0, 1.36, -0.2, 0.32, 0.34, 0.14, ARMURE_SOMBRE);   // sac
+    b(boite, 0, 1.24, -0.26, 0.26, 0.1, 0.06, OLIVE);
+    for (const s of [-1, 1]) b(boite, s * 0.29, 1.53, 0, 0.17, 0.1, 0.22, acc, { rz: s * -0.25 }); // épaulières
+    b(cylindre, 0, 1.6, 0, 0.07, 0.1, 0.07, TISSU);             // cou
+  });
+  const tete = geo((b) => {
+    b(sphere, 0, 1.78, -0.01, 0.17, 0.155, 0.19, ARMURE);       // casque
+    b(boite, 0, 1.79, 0, 0.36, 0.03, 0.4, ARMURE_SOMBRE, { rx: -0.05 }); // rebord
+    b(boite, 0, 1.69, 0.08, 0.2, 0.12, 0.13, ARMURE_SOMBRE);    // masque
+    b(boite, 0, 1.66, 0.15, 0.1, 0.06, 0.04, 0x111214);         // filtre
+    for (const s of [-1, 1]) b(boite, s * 0.16, 1.76, 0, 0.04, 0.09, 0.1, ARMURE_SOMBRE); // oreillettes
+  });
+  const visiere = geo((b) => b(boite, 0, 1.765, 0.155, 0.25, 0.05, 0.05, 0xffffff), false);
+  // Bras : pivot à l'épaule, le long de -y. Le bras droit porte l'arme (même maillage).
+  const brasPieces = (b) => {
+    b(boite, 0, -0.14, 0, 0.12, 0.28, 0.13, TISSU);
+    b(boite, 0, -0.29, 0.01, 0.13, 0.07, 0.14, ARMURE_SOMBRE);  // coudière
+    b(boite, 0, -0.43, 0, 0.11, 0.26, 0.12, TISSU);
+    b(boite, 0, -0.59, 0.01, 0.1, 0.1, 0.11, BOTTE);            // gant
+  };
+  const bras = geo(brasPieces);
+  const brasArme = geo((b) => {
+    brasPieces(b);
+    // arme le long du bras (dessus vers +z), décalée de (-0.04, 0.1, 0.02)
+    const a = (g, x, y, z, sx, sy, sz, rot) => b(g, x - 0.04, y + 0.1, z + 0.02, sx, sy, sz, 0x17181b, rot);
+    if (t.distance) { // fusil à lunette
+      a(boite, 0, -0.62, 0.05, 0.06, 0.62, 0.09);
+      a(boite, 0, -0.56, -0.04, 0.045, 0.08, 0.13, { rx: 0.2 });
+      a(boite, 0, -0.62, 0.13, 0.05, 0.18, 0.06);
+      a(cylindre, 0, -1.0, 0.06, 0.018, 0.2, 0.018);
+    } else { // pistolet-mitrailleur
+      a(boite, 0, -0.58, 0.04, 0.06, 0.4, 0.09);
+      a(boite, 0, -0.55, -0.05, 0.045, 0.06, 0.14);
+      a(cylindre, 0, -0.82, 0.05, 0.016, 0.12, 0.016);
+    }
+  });
+  // Jambe : pivot à la hanche, le long de -y
+  const jambe = geo((b) => {
+    b(boite, 0, -0.21, 0, 0.16, 0.42, 0.18, TISSU);
+    b(boite, 0.09, -0.2, 0, 0.04, 0.14, 0.12, OLIVE);           // poche de cuisse
+    b(boite, 0, -0.45, 0.06, 0.15, 0.12, 0.08, ARMURE_SOMBRE);  // genouillère
+    b(boite, 0, -0.66, 0, 0.14, 0.36, 0.16, TISSU);
+    b(boite, 0, -0.86, 0.04, 0.16, 0.1, 0.26, BOTTE);           // botte
+  });
+  return (cacheSoldat[acc] = { torse, tete, visiere, bras, brasArme, jambe });
+}
+
+// Mech-araignée
+const MECH = { hancheX: 0.62, hancheZ: 0.72, hancheY: 1.3, cuisse: [0.78, 0.62], tibia: [0.32, -1.92] };
+const geosMech = (() => {
+  const acc = TYPES.brute.accent;
+  const chassis = geo((b) => {
+    b(boite, 0, 1.45, 0, 1.4, 0.62, 1.8, ARMURE);                // coque
+    b(boite, 0, 1.8, -0.1, 1.15, 0.22, 1.4, ARMURE_SOMBRE);      // blindage supérieur
+    b(boite, 0, 1.12, 0, 1.0, 0.18, 1.4, ARMURE_SOMBRE);         // ventre
+    b(boite, 0, 1.45, 0.95, 1.1, 0.42, 0.2, ARMURE_SOMBRE, { rx: -0.35 }); // proue
+    b(boite, 0, 1.55, -1.0, 0.9, 0.5, 0.35, 0x2f3338);           // moteur arrière
+    for (const s of [-1, 1]) {
+      b(boite, s * 0.74, 1.48, 0.1, 0.1, 0.42, 1.3, acc);        // plaques latérales rouges
+      b(boite, s * 0.82, 1.62, 0.55, 0.22, 0.22, 0.7, ARMURE_SOMBRE); // canons latéraux
+      b(cylindre, s * 0.82, 1.62, 1.05, 0.07, 0.4, 0.07, 0x18191c, { rx: Math.PI / 2 });
+      b(cylindre, s * 0.62, 1.95, -0.6, 0.03, 0.6, 0.03, 0x18191c, { rz: s * 0.2 }); // antennes
+    }
+    for (let i = 0; i < 4; i++) b(boite, -0.3 + i * 0.2, 1.8, -0.98, 0.1, 0.12, 0.08, 0x18191c); // grilles
+  });
+  // tourelle (fusionnée dans la coque ; une boîte invisible sert de zone de tir à la tête)
+  const T = [0, 1.98, 0.55];
+  const tourelle = geo((b) => {
+    b(boite, T[0], T[1], T[2], 0.78, 0.42, 0.62, ARMURE);
+    b(boite, T[0], T[1] + 0.24, T[2] - 0.05, 0.6, 0.1, 0.5, ARMURE_SOMBRE);
+    b(boite, T[0], T[1] - 0.05, T[2] + 0.33, 0.7, 0.3, 0.08, ARMURE_SOMBRE);
+  });
+  const yeux = geo((b) => {
+    for (const [x, y, s] of [[-0.14, 0.06, 0.09], [0.14, 0.06, 0.09], [-0.25, -0.07, 0.06], [0.25, -0.07, 0.06], [-0.06, -0.1, 0.05], [0.06, -0.1, 0.05]]) {
+      b(boite, x, y, 0.38, s, s, 0.03, 0xffffff);
+    }
+  }, false);
+  const [cx, cy] = MECH.cuisse;
+  const longCuisse = Math.hypot(cx, cy);
+  const cuisse = geo((b) => {
+    b(boite, cx / 2, cy / 2, 0, longCuisse, 0.24, 0.26, ARMURE, { rz: Math.atan2(cy, cx) });
+    b(boite, cx / 2, cy / 2 + 0.12, 0, longCuisse * 0.7, 0.08, 0.3, acc, { rz: Math.atan2(cy, cx) });
+    b(sphere, 0, 0, 0, 0.2, 0.2, 0.2, ARMURE_SOMBRE);            // rotule de hanche
+    b(sphere, cx, cy, 0, 0.17, 0.17, 0.17, ARMURE_SOMBRE);       // genou
+  });
+  const [tx, ty] = MECH.tibia;
+  const longTibia = Math.hypot(tx, ty);
+  const tibia = geo((b) => {
+    b(boite, tx / 2, ty / 2, 0, 0.2, longTibia, 0.22, ARMURE_SOMBRE, { rz: Math.atan2(tx, -ty) });
+    b(cylindre, tx * 0.35, ty * 0.35, 0.13, 0.04, longTibia * 0.5, 0.04, 0x8a8f96, { rz: Math.atan2(tx, -ty) }); // vérin
+    b(boite, tx, ty + 0.06, 0, 0.36, 0.12, 0.34, BOTTE);         // pied
+  });
+  const coqueComplete = fusionner([{ geo: chassis }, { geo: tourelle }], { couleurs: true });
+  return { chassis: coqueComplete, yeux, cuisse, tibia, tete: T };
+})();
+
+/** Soldat tactique : torse, tête (zone de tir à la tête), visière lumineuse, bras, jambes, arme. */
+function construireSoldat(e, g, t) {
+  const G = geosSoldat(t);
+  const torse = new THREE.Mesh(G.torse, e.mat);
+  const tete = new THREE.Mesh(G.tete, e.mat);
+  const visiere = new THREE.Mesh(G.visiere, matVisiere(t.visiere));
+  tete.userData.tete = visiere.userData.tete = true;
+  g.add(torse, tete, visiere);
+  e.bras = [-1, 1].map((s) => {
+    const b = new THREE.Mesh(s > 0 ? G.brasArme : G.bras, e.mat);
+    b.position.set(s * 0.3, 1.5, 0.02);
+    g.add(b);
+    return b;
+  });
+  e.jambes = [-1, 1].map((s) => {
+    const j = new THREE.Mesh(G.jambe, e.mat);
+    j.position.set(s * 0.11, 0.92, 0);
+    g.add(j);
+    return j;
+  });
+  e.lumineux = [visiere];
+  torse.castShadow = true; // une seule ombre par soldat (moins d'appels de rendu)
+}
+
+const geoTeteMech = new THREE.BoxGeometry(0.8, 0.5, 0.75);
+
+/** Mech-araignée : châssis, tourelle (tir à la tête), yeux rouges, 4 pattes articulées. */
+function construireMech(e, g, t) {
+  const G = geosMech;
+  e.chassis = new THREE.Group();
+  const coque = new THREE.Mesh(G.chassis, e.mat);
+  const tourelle = new THREE.Mesh(geoTeteMech); // invisible : seulement pour le tir à la tête
+  tourelle.position.set(...G.tete);
+  tourelle.visible = false;
+  const yeux = new THREE.Mesh(G.yeux, matVisiere(t.visiere));
+  yeux.position.copy(tourelle.position);
+  tourelle.userData.tete = yeux.userData.tete = true;
+  e.chassis.add(coque, tourelle, yeux);
+  g.add(e.chassis);
+  coque.castShadow = true;
+  e.pattes = [[-1, 1], [1, 1], [-1, -1], [1, -1]].map(([sx, sz], i) => {
+    const hanche = new THREE.Group();
+    hanche.position.set(sx * MECH.hancheX, MECH.hancheY, sz * MECH.hancheZ);
+    // la patte (vers +x local) est tournée en diagonale vers l'extérieur
+    const lacet = Math.atan2(-sz, sx) + (sz > 0 ? -0.25 : 0.25) * sx;
+    hanche.rotation.order = 'YZX';
+    hanche.rotation.y = lacet;
+    const cuisse = new THREE.Mesh(G.cuisse, e.mat);
+    const genou = new THREE.Group();
+    genou.position.set(MECH.cuisse[0], MECH.cuisse[1], 0);
+    const tibia = new THREE.Mesh(G.tibia, e.mat);
+    genou.add(tibia);
+    hanche.add(cuisse, genou);
+    g.add(hanche);
+    return { hanche, genou, lacet, phase: i === 0 || i === 3 ? 0 : Math.PI };
+  });
+  e.lumineux = [yeux];
+}
 
 const _vers = new THREE.Vector3();
 const _v = new THREE.Vector3();
@@ -48,8 +237,8 @@ class Ennemi {
     this.vieMax = Math.round(t.vie * (1 + 0.12 * (niveau - 1)));
     this.vie = this.vieMax;
     this.vitesseMax = t.vitesse * Math.min(1.4, 1 + 0.03 * (niveau - 1));
-    this.rayon = 0.45 * t.taille;
-    this.hauteur = 2.05 * t.taille;
+    this.rayon = t.rayon;
+    this.hauteur = t.hauteur;
 
     this.position = new THREE.Vector3(x, 0, z);
     this.vel = new THREE.Vector3();
@@ -76,39 +265,13 @@ class Ennemi {
     this.mortTimer = 0;
     this.aSupprimer = false;
 
-    // Modèle
-    this.mat = new THREE.MeshStandardMaterial({ color: t.couleur, roughness: 0.55, metalness: 0.15 });
+    // Modèle (un matériau par ennemi : flash de touche et fondu à la mort)
+    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35 });
     const g = new THREE.Group();
     g.rotation.order = 'YXZ';
     g.userData.ennemi = this;
-    const corps = new THREE.Mesh(geoCorps, this.mat);
-    corps.position.y = 1.05;
-    const tete = new THREE.Mesh(geoTete, this.mat);
-    tete.position.y = 1.8;
-    tete.userData.tete = true;
-    g.add(corps, tete);
-    for (const s of [-1, 1]) {
-      const oeil = new THREE.Mesh(geoOeil, matOeil);
-      oeil.position.set(s * 0.085, 1.83, 0.21);
-      g.add(oeil);
-    }
-    this.bras = [-1, 1].map((s) => {
-      const b = new THREE.Mesh(geoBras, this.mat);
-      b.position.set(s * 0.47, 1.42, 0);
-      g.add(b);
-      return b;
-    });
-    this.jambes = [-1, 1].map((s) => {
-      const j = new THREE.Mesh(geoJambe, this.mat);
-      j.position.set(s * 0.15, 0.55, 0);
-      g.add(j);
-      return j;
-    });
-    if (t.distance) {
-      this.arme = new THREE.Mesh(geoArme, matArme);
-      this.bras[1].add(this.arme);
-    }
-    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    if (t.modele === 'mech') construireMech(this, g, t);
+    else construireSoldat(this, g, t);
     g.scale.setScalar(0.01);
     g.position.copy(this.position);
     g.rotation.y = this.angle;
@@ -123,7 +286,7 @@ class Ennemi {
 
   ligneDeVue(joueur, dist, obstacles) {
     if (dist > VISION) return false;
-    _oeil.set(this.position.x, 1.8 * this.t.taille, this.position.z);
+    _oeil.set(this.position.x, this.t.yeux, this.position.z);
     _rayon.set(joueur.position.x, joueur.position.y + 1.5, joueur.position.z).sub(_oeil);
     const longueur = _rayon.length();
     raycaster.set(_oeil, _rayon.divideScalar(longueur));
@@ -151,7 +314,7 @@ class Ennemi {
     this.mortTimer = 0;
     this.mat.transparent = true;
     this.mat.emissive.setScalar(0);
-    this.groupe.traverse((o) => { if (o.material === matOeil || o.material === matArme) o.visible = false; });
+    for (const o of this.lumineux) o.visible = false;
   }
 
   entendre(position, portee) {
@@ -165,7 +328,18 @@ class Ennemi {
     if (this.mort) {
       this.mortTimer += dt;
       const p = Math.min(1, this.mortTimer / 0.45);
-      g.rotation.x = -p * p * Math.PI / 2;
+      if (this.pattes) {
+        // le mech s'effondre : pattes écartées, châssis au sol, légère bascule
+        for (const patte of this.pattes) {
+          patte.hanche.rotation.z = p * 0.7;
+          patte.genou.rotation.z = -p * 0.9;
+        }
+        this.chassis.position.y = -p * p * 1.0;
+        this.chassis.rotation.z = p * 0.15;
+        this.chassis.rotation.x = -p * 0.1;
+      } else {
+        g.rotation.x = -p * p * Math.PI / 2;
+      }
       g.position.y = -Math.max(0, this.mortTimer - 0.8) * 0.8;
       this.mat.opacity = 1 - clamp((this.mortTimer - 0.7) / 0.6, 0, 1);
       if (this.mortTimer > 1.3) this.aSupprimer = true;
@@ -175,7 +349,7 @@ class Ennemi {
     if (this.apparition > 0) {
       this.apparition -= dt;
       const s = 1 - Math.max(0, this.apparition) / DUREE_APPARITION;
-      g.scale.setScalar(this.t.taille * Math.max(0.01, s));
+      g.scale.setScalar(this.t.echelle * Math.max(0.01, s));
       return;
     }
 
@@ -296,27 +470,71 @@ class Ennemi {
 
     // Animation
     const v = Math.hypot(this.vel.x, this.vel.z);
+    if (this.pattes) {
+      this.animerMech(dt, v);
+      g.position.set(this.position.x, 0, this.position.z);
+    } else {
+      this.animerSoldat(v, dt);
+      g.position.set(this.position.x, Math.abs(Math.sin(this.marche)) * 0.06, this.position.z);
+    }
+    g.rotation.y = this.angle;
+    g.scale.setScalar(this.t.echelle);
+
+    this.flash -= dt;
+    this.mat.emissive.setScalar(this.flash > 0 ? 0.9 : 0);
+  }
+
+  animerSoldat(v, dt) {
     this.marche += dt * v * 2.2;
     const balancier = Math.sin(this.marche) * Math.min(v / 3, 1) * 0.7;
     this.jambes[0].rotation.x = balancier * 0.8;
     this.jambes[1].rotation.x = -balancier * 0.8;
     if (this.etat === 'attaque') {
+      // coup de crosse : les deux bras se lèvent puis frappent
       const p = 1 - this.timer / DUREE_ARMEMENT;
       this.bras[0].rotation.x = this.bras[1].rotation.x = -0.6 - p * 2.2;
     } else if (this.t.distance && this.etat === 'poursuite' && this.voit) {
-      this.bras[0].rotation.x = balancier;
-      this.bras[1].rotation.x = -Math.PI / 2 + Math.max(0, this.recharge - this.t.recharge + 0.2) * 2;
+      // en joue : bras tendus vers l'avant, recul après chaque tir
+      const recul = Math.max(0, this.recharge - this.t.recharge + 0.2) * 2;
+      this.bras[1].rotation.x = -Math.PI / 2 + recul;
+      this.bras[0].rotation.x = -1.25 + recul;
+      this.bras[0].rotation.z = 0.45;
+    } else if (this.etat === 'poursuite' || this.etat === 'alerte') {
+      // arme tenue à deux mains, prête
+      this.bras[1].rotation.x = -0.75 + balancier * 0.15;
+      this.bras[0].rotation.x = -0.55 + balancier * 0.15;
+      this.bras[0].rotation.z = 0.4;
     } else {
       this.bras[0].rotation.x = balancier;
-      this.bras[1].rotation.x = -balancier;
+      this.bras[0].rotation.z = 0;
+      this.bras[1].rotation.x = -0.35 - balancier * 0.3;
     }
+  }
 
-    g.position.set(this.position.x, Math.abs(Math.sin(this.marche)) * 0.06, this.position.z);
-    g.rotation.y = this.angle;
-    g.scale.setScalar(this.t.taille);
-
-    this.flash -= dt;
-    this.mat.emissive.setScalar(this.flash > 0 ? 0.9 : 0);
+  animerMech(dt, v) {
+    // pattes en diagonale (0-3 / 1-2) : une paire avance pendant que l'autre pousse
+    this.marche += dt * (v * 1.6 + 0.4);
+    const k = Math.min(v / 2, 1);
+    for (const p of this.pattes) {
+      const ph = this.marche + p.phase;
+      const leve = Math.max(0, Math.sin(ph)) * 0.32 * k;
+      p.hanche.rotation.y = p.lacet + Math.cos(ph) * 0.32 * k;
+      p.hanche.rotation.z = leve;
+      p.genou.rotation.z = -leve * 1.3;
+    }
+    let tangage = 0, haut = Math.abs(Math.sin(this.marche * 2)) * 0.05 * k;
+    if (this.etat === 'attaque') {
+      // se cabre puis écrase le joueur avec les pattes avant
+      const p = 1 - this.timer / DUREE_ARMEMENT;
+      tangage = -Math.sin(p * Math.PI * 0.5) * 0.35;
+      haut += p * 0.3;
+      for (const i of [0, 1]) {
+        this.pattes[i].hanche.rotation.z = p * 0.9;
+        this.pattes[i].genou.rotation.z = -p * 0.4;
+      }
+    }
+    this.chassis.rotation.x = tangage;
+    this.chassis.position.y = haut;
   }
 
   deplacer(dx, dz, vitesse, dt, c) {
@@ -371,11 +589,12 @@ class Ennemi {
 
   tirer(c, dist) {
     const j = c.joueur;
-    const s = this.t.taille;
+    const s = this.t.echelle;
+    // bouche du fusil : devant l'épaule droite
     _origine.set(
-      this.position.x + Math.sin(this.angle) * 0.6 * s + Math.cos(this.angle) * 0.5 * s,
-      1.42 * s,
-      this.position.z + Math.cos(this.angle) * 0.6 * s - Math.sin(this.angle) * 0.5 * s,
+      this.position.x + Math.sin(this.angle) * 1.0 * s + Math.cos(this.angle) * 0.3 * s,
+      1.55 * s,
+      this.position.z + Math.cos(this.angle) * 1.0 * s - Math.sin(this.angle) * 0.3 * s,
     );
     // Vise le torse en anticipant un peu le mouvement, avec une imprécision
     const t = dist / VITESSE_PROJECTILE;
@@ -385,7 +604,7 @@ class Ennemi {
       j.position.z + j.vitesse.z * t * 0.5 + (Math.random() - 0.5) * 1.2,
     ).sub(_origine).normalize();
     c.projectiles.tirer(_origine, _visee, this.t.degats);
-    c.effets.etincelles(_origine, 0x66d9ff, 4, 1.5, 0.2, 0, 0);
+    c.effets.etincelles(_origine, 0xffc070, 5, 1.5, 0.15, 0, 0);
     sons.tirEnnemi();
   }
 

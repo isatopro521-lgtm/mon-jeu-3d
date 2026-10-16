@@ -76,5 +76,11 @@ export const sons = {
     ton(95, 28, 0.9, 0.6 * k, 'sine');
     ton(60, 22, 1.3, 0.35 * k, 'triangle', 0.03);
   },
+  // Tonnerre : craquement puis grondement, retardé selon la distance de l'éclair
+  tonnerre: (delai = 0.3, k = 1) => {
+    bruit(0.25, 3000, 0.35 * k, delai, 'highpass');
+    bruit(2.2, 180, 1.1 * k, delai + 0.05);
+    ton(55, 25, 1.8, 0.35 * k, 'sine', delai + 0.05);
+  },
   ramasserGrenade: () => { ton(2000, 1800, 0.03, 0.08, 'square'); ton(420, 840, 0.14, 0.12, 'triangle', 0.04); },
 };

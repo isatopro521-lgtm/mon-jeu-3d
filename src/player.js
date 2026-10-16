@@ -10,6 +10,8 @@ const HAUTEUR_YEUX = 1.6;
 const HAUTEUR = 1.8;
 export const RAYON_JOUEUR = 0.4;
 export const VIE_MAX = 100;
+export const ARMURE_DEPART = 50;
+export const ARMURE_MAX = 100;
 
 const HAUT = new THREE.Vector3(0, 1, 0);
 const _avant = new THREE.Vector3();
@@ -26,6 +28,7 @@ export class Joueur {
     this.touches = new Set();
     this.entree = { x: 0, y: 0, saut: false, sprint: false }; // commandes tactiles
     this.vieMax = VIE_MAX;
+    this.armureMax = ARMURE_MAX;
     this.balancement = 0;
     this.secousse = 0;
 
@@ -44,6 +47,7 @@ export class Joueur {
     this.position.set(0, 0, 12);
     this.vitesse.set(0, 0, 0);
     this.vie = VIE_MAX;
+    this.armure = ARMURE_DEPART;
     this.auSol = true;
     this.secousse = 0;
     this.camera.quaternion.identity(); // regarde vers le centre (-z)
@@ -60,13 +64,23 @@ export class Joueur {
 
   get vitesseHorizontale() { return Math.hypot(this.vitesse.x, this.vitesse.z); }
 
+  /** L'armure encaisse les dégâts en premier, puis la vie. */
   subirDegats(n) {
-    this.vie = Math.max(0, this.vie - n);
+    const absorbe = Math.min(this.armure, n);
+    this.armure -= absorbe;
+    this.vie = Math.max(0, this.vie - (n - absorbe));
     this.secousse = Math.min(0.25, this.secousse + n / 150);
   }
 
   soigner(n) {
     this.vie = Math.min(VIE_MAX, this.vie + n);
+  }
+
+  /** Ajoute de l'armure ; renvoie false si elle est déjà au maximum. */
+  ajouterArmure(n) {
+    if (this.armure >= ARMURE_MAX) return false;
+    this.armure = Math.min(ARMURE_MAX, this.armure + n);
+    return true;
   }
 
   update(dt) {
