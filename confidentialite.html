@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Confidentialité — NEXUS FRONTIER</title>
+  <meta name="description" content="Politique de confidentialité du jeu NEXUS FRONTIER.">
+  <meta name="theme-color" content="#14171b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; color: #e9edf1; line-height: 1.55;
+      font-family: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 50% 0%, rgba(255, 122, 30, 0.14), transparent 55%), #14171b;
+      padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+               max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    }
+    main {
+      max-width: 720px; margin: 0 auto; padding: 24px 30px 30px;
+      background: linear-gradient(180deg, rgba(31, 36, 42, 0.92), rgba(16, 19, 23, 0.94));
+      border: 1px solid rgba(190, 205, 220, 0.22); border-top: 3px solid #ff7a1e;
+    }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    header img { width: 56px; height: 56px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: 4px; text-transform: uppercase; }
+    h1 span { display: block; font-size: 14px; letter-spacing: 6px; color: #ff7a1e; }
+    h2 { font-size: 17px; letter-spacing: 2px; text-transform: uppercase; color: #ffa25a; margin: 24px 0 6px; }
+    p, li { color: #c9d1d9; }
+    strong { color: #e9edf1; }
+    a { color: #ffa25a; }
+    .retour {
+      display: inline-block; margin-top: 26px; padding: 10px 26px; color: #fff; text-decoration: none;
+      font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+      background: linear-gradient(180deg, #ff8a32, #e2620e);
+      clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+    }
+    .maj { font-size: 13px; color: #a9b3bd; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="icons/icon-192.png" alt="">
+      <h1>Confidentialité<span>NEXUS FRONTIER</span></h1>
+    </header>
+    <p class="maj">Dernière mise à jour : octobre 2026</p>
+
+    <h2>En bref</h2>
+    <p>NEXUS FRONTIER est un jeu gratuit. <strong>Il ne collecte aucune donnée personnelle</strong> :
+      pas de compte, pas de publicité, pas de suivi, pas de statistiques d'audience, pas de cookies publicitaires.</p>
+
+    <h2>Ce qui reste sur ton appareil</h2>
+    <p>Le jeu enregistre quelques informations <strong>uniquement sur ton appareil</strong> (stockage local du navigateur) :</p>
+    <ul>
+      <li>ton meilleur score (record) ;</li>
+      <li>le dernier pseudo que tu as tapé ;</li>
+      <li>la qualité graphique choisie ;</li>
+      <li>le classement local et le choix de masquer l'aide à l'installation ;</li>
+      <li>les fichiers du jeu, pour pouvoir jouer hors ligne.</li>
+    </ul>
+    <p>Ces informations ne sont envoyées à personne. Tu peux les effacer à tout moment en supprimant
+      les données du site dans les réglages de ton navigateur, ou en désinstallant l'app.</p>
+
+    <h2>Classement en ligne</h2>
+    <p>Si le classement en ligne est activé et que tu choisis d'enregistrer ton score à la fin d'une partie,
+      seuls <strong>le pseudo que tu as choisi, ton score et la vague atteinte</strong> sont envoyés au
+      serveur du classement (Supabase), pour être affichés aux autres joueurs. N'utilise pas ton vrai nom
+      comme pseudo. Si tu n'enregistres pas ton score, rien n'est envoyé.</p>
+
+    <h2>Enfants</h2>
+    <p>Le jeu ne demande ni âge, ni nom, ni adresse e-mail, ni aucune autre information personnelle.</p>
+
+    <h2>Contact</h2>
+    <p>Pour toute question, ou pour demander la suppression d'un score du classement en ligne :
+      via la page GitHub du projet,
+      <a href="https://github.com/isatopro521-lgtm/mon-jeu-3d">github.com/isatopro521-lgtm/mon-jeu-3d</a>.</p>
+
+    <a class="retour" href="./">Retour au jeu</a>
+  </main>
+</body>
+</html>

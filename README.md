@@ -31,6 +31,8 @@ aucune image à télécharger).
   vie + armure, munitions, grenades.
 - Score et record (gardé dans le navigateur), classement en ligne.
 - **Qualité graphique** (bouton dans le menu et la pause) : Auto (par défaut), Haute, Moyenne, Basse.
+- **App installable (PWA)** : le jeu s'installe sur l'écran d'accueil (iPhone, Android, PC), s'ouvre en plein écran
+  et fonctionne **hors ligne** (service worker).
   En Auto, le jeu baisse tout seul la qualité s'il passe sous 40 images/s (choix mémorisé).
 
 ### Lancer le jeu
@@ -45,6 +47,51 @@ Puis ouvrir http://localhost:8000 dans le navigateur.
 
 Pour jouer sur téléphone, lancer le serveur sur l'ordinateur et ouvrir `http://<adresse-IP-de-l'ordinateur>:8000` depuis le téléphone (même réseau Wi-Fi).
 
+### Installer le jeu comme une app
+
+Le jeu est une **web app installable** (PWA) : une fois installé, il a son icône, s'ouvre en plein écran
+sans barre d'adresse et marche même sans connexion (seul le classement en ligne a besoin d'Internet).
+
+- **iPhone / iPad** (Safari) : ouvrir https://isatopro521-lgtm.github.io/mon-jeu-3d/, toucher **Partager**
+  (carré avec une flèche) → **Sur l'écran d'accueil** → *Ajouter*. Le menu du jeu le rappelle avec une petite bannière
+  (que l'on peut fermer).
+- **Android** (Chrome) : bouton **Installer le jeu** dans le menu, ou menu ⋮ → *Installer l'application*.
+- **PC** (Chrome, Edge) : bouton **Installer le jeu** du menu, ou icône d'installation dans la barre d'adresse.
+
+Les mises à jour arrivent toutes seules : à chaque publication, le workflow remplace le marqueur `__VERSION__`
+de `sw.js` par le numéro du commit, ce qui renouvelle le cache hors ligne des joueurs
+(au lancement suivant, `index.html` est toujours redemandé au réseau d'abord).
+En local, le marqueur reste et le service worker passe en « réseau d'abord » pour ne pas gêner le développement ;
+il n'est pas enregistré du tout avec `?debug`.
+
+Pour refaire les icônes ou les captures d'écran (Playwright + Chromium nécessaires) :
+`node scripts/generer-icones.mjs` et `node scripts/generer-captures.mjs`.
+
+### Publier sur les stores
+
+**Déjà prêt** : icônes (`icons/`, dont une icône *maskable* pour Android et une icône Apple 180 × 180),
+manifest (`manifest.webmanifest`), 2 captures d'écran 1280 × 720 (`captures/`), service worker hors ligne (`sw.js`)
+et page de confidentialité (`confidentialite.html`, à donner comme « Privacy policy URL » :
+https://isatopro521-lgtm.github.io/mon-jeu-3d/confidentialite.html).
+
+**Google Play (Android)** — le plus simple :
+
+1. Créer un compte développeur Google Play : **25 $ une seule fois**.
+2. Aller sur [PWABuilder](https://www.pwabuilder.com), coller l'adresse du site
+   (https://isatopro521-lgtm.github.io/mon-jeu-3d/) : il vérifie le manifest et **génère le paquet Android**
+   (fichier `.aab`) à partir du site, sans rien recoder.
+3. Envoyer ce paquet dans la Play Console, remplir la fiche (description, captures, confidentialité, classification
+   du contenu) et publier. PWABuilder fournit aussi un fichier `assetlinks.json` à mettre sur le site pour
+   masquer la barre d'adresse.
+
+**App Store (iPhone / iPad)** — plus contraignant :
+
+- Compte **Apple Developer : 99 $ par an**, au nom d'une personne **majeure (18 ans)** ou d'un parent.
+- Il faut un **Mac avec Xcode** (ou un service de compilation en ligne) pour fabriquer l'app, par exemple avec
+  PWABuilder (paquet iOS) ou [Capacitor](https://capacitorjs.com).
+- **Risque de refus** : la règle 4.2 d'Apple (« fonctionnalités minimales ») refuse les apps qui ne sont qu'un site
+  web emballé. Sur iPhone, l'installation depuis Safari (ci-dessus) reste gratuite et suffit souvent.
+
 ### Mettre le jeu en ligne
 
 **GitHub Pages** (gratuit, adresse `https://isatopro521-lgtm.github.io/mon-jeu-3d/`) :
@@ -58,7 +105,7 @@ Pour jouer sur téléphone, lancer le serveur sur l'ordinateur et ouvrir `http:/
 
 **itch.io** (site de jeux indépendants, pour être découvert par des joueurs) :
 
-1. Fabriquer le zip : `bash scripts/zip-itch.sh` → `dist/arene-itch.zip`
+1. Fabriquer le zip : `bash scripts/zip-itch.sh` → `dist/nexus-frontier-itch.zip`
    (le workflow GitHub le fabrique aussi : onglet *Actions* → dernière exécution → *Artifacts*).
 2. Sur itch.io : *Upload new project* → *Kind of project* : **HTML** → envoyer le zip
    → cocher *This file will be played in the browser*.
@@ -156,8 +203,14 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/hud.js` | Interface (boussole, minicarte, vie/armure, munitions, score, écrans) |
 | `src/audio.js` | Sons générés avec la Web Audio API |
 | `src/utils.js` | Collisions, bruit procédural, fusion de géométries |
+| `src/installation.js` | Aide à l'installation de l'app (bannière iPhone, bouton « Installer le jeu ») |
+| `sw.js` | Service worker : cache des fichiers du jeu, jeu hors ligne, mises à jour |
+| `manifest.webmanifest` | Manifest de l'app (nom, icônes, plein écran paysage, captures) |
+| `confidentialite.html` | Page de confidentialité (demandée par les stores) |
+| `icons/`, `captures/` | Icônes de l'app et captures d'écran pour les stores |
 
-`lib/three/` contient Three.js 0.160.0. `scripts/zip-itch.sh` fabrique le zip pour itch.io.
+`lib/three/` contient Three.js 0.160.0. `scripts/zip-itch.sh` fabrique le zip pour itch.io ;
+`scripts/generer-icones.mjs` et `scripts/generer-captures.mjs` refont les icônes et les captures.
 
 Ajouter `?debug` à l'URL expose l'objet `window.jeu` pour le débogage.
 

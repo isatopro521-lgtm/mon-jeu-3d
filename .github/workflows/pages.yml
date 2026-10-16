@@ -27,8 +27,13 @@ jobs:
 
       - name: Préparer les fichiers du jeu
         run: |
+          bash scripts/verifier-sw.sh
           mkdir _site
           cp -r index.html style.css src lib _site/
+          cp -r manifest.webmanifest sw.js confidentialite.html icons captures _site/
+          # Version du cache hors ligne = commit publié : les joueurs reçoivent la mise à jour
+          sed -i "s/__VERSION__/${GITHUB_SHA}/" _site/sw.js
+          grep -q "${GITHUB_SHA}" _site/sw.js
 
       - name: Fabriquer le zip pour itch.io
         run: bash scripts/zip-itch.sh
