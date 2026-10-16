@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { creerMonde, POINTS_APPARITION } from './world.js';
+import { creerMonde, POINTS_APPARITION, DEMI_ARENE } from './world.js';
 import { Joueur } from './player.js';
 import { Armes } from './weapons.js';
 import { GestionEnnemis } from './enemies.js';
@@ -11,12 +11,17 @@ import { initAudio, sons } from './audio.js';
 import { melanger } from './utils.js';
 import { ControlesTactiles, estTactile, pleinEcranPaysage } from './touch.js';
 import { classement, lirePseudo, nettoyerPseudo } from './scores.js';
+import { TempeteNexus } from './tempete.js';
+import { Qualite } from './qualite.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
 const PAUSE_ENTRE_VAGUES = 4;
 const CHANCE_SOIN = 0.22;
 const CHANCE_GRENADE = 0.1;
+const CHANCE_MUNITIONS = 0.14;        // 0.35 quand l'arme en main manque de munitions
+const ARMURE_PAR_VAGUE = 25;
+const VAGUES_TEMPETE = 5;              // Tempête Nexus toutes les 5 vagues
 const CLE_RECORD = 'mon-jeu-3d-record';
 
 document.body.classList.toggle('tactile', estTactile);
@@ -32,7 +37,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.getElementById('jeu').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 200);
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 3000);
 scene.add(camera); // nécessaire pour afficher l'arme attachée à la caméra
 
 // En mode portrait, on élargit le champ vertical pour garder assez de vision sur les côtés
@@ -48,11 +53,24 @@ ajusterCamera();
 addEventListener('resize', ajusterCamera);
 
 // ---------- Objets du jeu ----------
-const monde = creerMonde(scene, { tailleOmbres: estTactile ? 1024 : 2048 });
+const monde = creerMonde(scene, {
+  tailleOmbres: estTactile ? 1024 : 2048,
+  qualite: estTactile ? 'basse' : 'haute', // moins d'arbres et d'herbe sur téléphone
+  renderer,
+});
 const effets = new Effets(scene);
 const joueur = new Joueur(camera, document.body, monde.boites);
 const ennemis = new GestionEnnemis(scene, monde, effets);
 const bonus = new Bonus(scene);
+const tempete = new TempeteNexus(scene, camera, monde.ciel, hud, { qualite: estTactile ? 'basse' : 'haute' });
+
+// Qualité graphique (Auto par défaut) : bouton dans le menu et l'écran pause
+const boutonsQualite = document.querySelectorAll('.btn-qualite');
+const qualite = new Qualite({
+  renderer, scene, monde, tempete, estTactile,
+  onChange: (q) => { for (const b of boutonsQualite) b.textContent = q.libelle; },
+});
+for (const b of boutonsQualite) b.addEventListener('click', () => qualite.cycler());
 
 const partie = {
   etat: 'menu', // menu | jeu | pause | fin
@@ -85,8 +103,10 @@ function toucherEnnemi(ennemi, degats, direction, point, tete = false) {
     sons.mortEnnemi();
     effets.etincelles(point, ennemi.t.couleur, 30, 5, 0.9);
     const tirage = Math.random();
+    const chanceMun = armes.munitionsBasses ? 0.35 : CHANCE_MUNITIONS;
     if (tirage < CHANCE_SOIN) bonus.creer(ennemi.position.x, ennemi.position.z, 'soin');
     else if (tirage < CHANCE_SOIN + CHANCE_GRENADE) bonus.creer(ennemi.position.x, ennemi.position.z, 'grenade');
+    else if (tirage < CHANCE_SOIN + CHANCE_GRENADE + chanceMun) bonus.creer(ennemi.position.x, ennemi.position.z, 'munitions');
   }
 }
 
@@ -97,6 +117,9 @@ const armes = new Armes(camera, effets, {
     toucherEnnemi(ennemi, tete ? degats * 2 : degats, direction, point, tete);
   },
 });
+
+armes.adapterEcran(innerWidth / innerHeight);
+addEventListener('resize', () => armes.adapterEcran(innerWidth / innerHeight));
 
 const grenades = new Grenades(scene, camera, effets, monde, {
   joueur,
@@ -118,6 +141,12 @@ function ramasserBonus(type) {
     joueur.soigner(SOIN);
     sons.soin();
     hud.message('+ SOIN', 0.8);
+    return true;
+  }
+  if (type === 'munitions') {
+    if (!armes.ajouterMunitions(2)) return false;
+    sons.ramasserGrenade();
+    hud.message('+ MUNITIONS', 0.8);
     return true;
   }
   if (type === 'grenade') {
@@ -151,8 +180,13 @@ function prochaineVague() {
   partie.file = composition(partie.vague);
   partie.minuteurApparition = 0.5;
   partie.entreVagues = 0;
-  hud.message(`VAGUE ${partie.vague}`);
   sons.vague();
+  if (partie.vague % VAGUES_TEMPETE === 0) {
+    tempete.demarrer();
+    hud.message(`VAGUE ${partie.vague} — TEMPÊTE NEXUS`, 3);
+  } else {
+    hud.message(`VAGUE ${partie.vague}`);
+  }
 }
 
 function faireApparaitre(type) {
@@ -176,8 +210,11 @@ function gererVagues(dt) {
       const prime = 250 * partie.vague;
       partie.score += prime;
       joueur.soigner(25);
+      joueur.ajouterArmure(ARMURE_PAR_VAGUE);
+      armes.ravitailler();
       grenades.ajouter(1);
       hud.message(`VAGUE TERMINÉE  +${prime}`, 2.5);
+      tempete.arreter();
     } else if ((partie.entreVagues -= dt) <= 0) {
       prochaineVague();
     }
@@ -192,6 +229,7 @@ function nouvellePartie() {
   joueur.reinitialiser();
   armes.reinitialiser();
   grenades.reinitialiser();
+  tempete.reinitialiser();
   partie.score = 0;
   partie.vague = 0;
   partie.file = [];
@@ -200,6 +238,7 @@ function nouvellePartie() {
 
 function commencer() {
   if (partie.etat === 'menu' || partie.etat === 'fin') nouvellePartie();
+  qualite.reprise();
   partie.etat = 'jeu';
   armes.actif = true;
   hud.ecran(null);
@@ -328,6 +367,23 @@ hud.ecran('menu');
 
 // ---------- Boucle de jeu ----------
 const horloge = new THREE.Clock();
+const _dirCamera = new THREE.Vector3();
+
+/** Cap de la caméra en degrés : 0 = nord (-z), 90 = est (+x). */
+function capCamera() {
+  camera.getWorldDirection(_dirCamera);
+  const cap = THREE.MathUtils.radToDeg(Math.atan2(_dirCamera.x, -_dirCamera.z));
+  return (cap + 360) % 360;
+}
+
+// Menu : lent travelling au-dessus de l'arène, vers le lac, les avant-postes et l'anneau
+let tempsMenu = 0;
+function cameraMenu(dt) {
+  tempsMenu += dt;
+  const a = Math.sin(tempsMenu * 0.05) * 0.25;
+  camera.position.set(8 + Math.sin(tempsMenu * 0.04) * 2, 6.5, -27);
+  camera.rotation.set(0.06, -0.42 + a, 0, 'YXZ');
+}
 
 function majJeu(dt) {
   if (tactile) {
@@ -342,18 +398,44 @@ function majJeu(dt) {
   bonus.update(dt, joueur, ramasserBonus);
   gererVagues(dt);
 
-  hud.vie(joueur.vie, joueur.vieMax);
-  hud.munitions(armes.arme.nom, armes.chargeur, armes.arme.chargeur, armes.recharge > 0);
+  const restants = ennemis.vivants + partie.file.length;
+  const cap = capCamera();
+  hud.vie(joueur.vie, joueur.vieMax, joueur.armure, joueur.armureMax);
+  hud.munitions(armes.arme.nom, armes.chargeur, armes.arme.chargeur, armes.recharge > 0, armes.reserve, armes.indice);
   hud.grenades(grenades.stock, grenades.max);
-  hud.vague(partie.vague, ennemis.vivants + partie.file.length);
+  hud.vague(partie.vague, restants);
   hud.score(Math.round(partie.score));
+  hud.boussole(cap);
+  hud.carte(dt, {
+    joueur, ennemis: ennemis.liste, bonus: bonus.liste, boites: monde.boites, demiArene: DEMI_ARENE,
+    cap, vague: partie.vague, restants, entreVagues: partie.entreVagues,
+  });
 
   if (joueur.mort) finDePartie();
 }
 
+const elIps = new URLSearchParams(location.search).has('debug') ? document.getElementById('ips') : null;
+elIps?.classList.remove('cache');
+let ipsAffiche = 0, imagesIps = 0, tempsIps = 0;
+
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(horloge.getDelta(), 0.05);
+  const dtReel = horloge.getDelta();
+  const dt = Math.min(dtReel, 0.05);
+  qualite.mesurer(dtReel, partie.etat === 'jeu' && !document.hidden);
+  if (elIps) {
+    imagesIps++;
+    tempsIps += dtReel;
+    if ((ipsAffiche -= dtReel) <= 0) {
+      ipsAffiche = 0.5;
+      elIps.textContent = `${(imagesIps / tempsIps).toFixed(0)} i/s · ${qualite.niveau} · ${renderer.info.render.calls} appels`;
+      imagesIps = tempsIps = 0;
+    }
+  }
   if (partie.etat === 'jeu') majJeu(dt);
+  else if (partie.etat === 'menu' && !joueur.controles.isLocked) cameraMenu(dt);
+  armes.support.visible = partie.etat !== 'menu';
+  monde.update(dt);
+  tempete.update(dt);
   effets.update(dt);
   grenades.majVisuels(dt);
   hud.update(dt, joueur.vie, joueur.vieMax);
@@ -362,5 +444,5 @@ renderer.setAnimationLoop(() => {
 
 // Accès de débogage : ouvrir index.html?debug
 if (new URLSearchParams(location.search).has('debug')) {
-  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile };
+  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets, qualite };
 }

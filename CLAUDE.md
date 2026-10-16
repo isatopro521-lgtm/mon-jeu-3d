@@ -1,4 +1,4 @@
-# mon-jeu-3d — ARÈNE
+# mon-jeu-3d — NEXUS FRONTIER
 
 Jeu de combat FPS en Three.js (PC + téléphone), publié sur GitHub Pages :
 https://isatopro521-lgtm.github.io/mon-jeu-3d/
