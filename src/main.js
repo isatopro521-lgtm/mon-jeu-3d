@@ -4,7 +4,8 @@ import { Joueur } from './player.js';
 import { Armes } from './weapons.js';
 import { GestionEnnemis } from './enemies.js';
 import { Effets } from './effects.js';
-import { Bonus } from './pickups.js';
+import { Bonus, SOIN } from './pickups.js';
+import { Grenades } from './grenades.js';
 import { hud } from './hud.js';
 import { initAudio, sons } from './audio.js';
 import { melanger } from './utils.js';
@@ -15,6 +16,7 @@ const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
 const PAUSE_ENTRE_VAGUES = 4;
 const CHANCE_SOIN = 0.22;
+const CHANCE_GRENADE = 0.1;
 const CLE_RECORD = 'mon-jeu-3d-record';
 
 document.body.classList.toggle('tactile', estTactile);
@@ -64,27 +66,68 @@ const partie = {
 
 let dernierSonTouche = 0;
 
+/**
+ * Dégâts infligés par le joueur (balle ou grenade) : effets, marqueur, sons,
+ * puis score et bonus éventuels si l'ennemi meurt.
+ */
+function toucherEnnemi(ennemi, degats, direction, point, tete = false) {
+  const res = ennemi.toucher(degats, direction);
+  if (!res) return;
+  effets.etincelles(point, tete ? 0xffcc33 : 0xff3b2f, tete ? 12 : 7, 3.5, 0.5);
+  hud.marqueur(tete, res.mort);
+  const maintenant = performance.now();
+  if (maintenant - dernierSonTouche > 40) { // évite d'empiler les sons (fusil à pompe, grenade)
+    dernierSonTouche = maintenant;
+    (tete ? sons.tete : sons.touche)();
+  }
+  if (res.mort) {
+    partie.score += res.points * (tete ? 1.5 : 1);
+    sons.mortEnnemi();
+    effets.etincelles(point, ennemi.t.couleur, 30, 5, 0.9);
+    const tirage = Math.random();
+    if (tirage < CHANCE_SOIN) bonus.creer(ennemi.position.x, ennemi.position.z, 'soin');
+    else if (tirage < CHANCE_SOIN + CHANCE_GRENADE) bonus.creer(ennemi.position.x, ennemi.position.z, 'grenade');
+  }
+}
+
 const armes = new Armes(camera, effets, {
   getCibles: () => ennemis.cibles(),
   onBruit: (position) => ennemis.bruit(position, 25),
   onTouche(ennemi, tete, degats, direction, point) {
-    const res = ennemi.toucher(tete ? degats * 2 : degats, direction);
-    if (!res) return;
-    effets.etincelles(point, tete ? 0xffcc33 : 0xff3b2f, tete ? 12 : 7, 3.5, 0.5);
-    hud.marqueur(tete, res.mort);
-    const maintenant = performance.now();
-    if (maintenant - dernierSonTouche > 40) { // évite d'empiler 9 sons avec le fusil à pompe
-      dernierSonTouche = maintenant;
-      (tete ? sons.tete : sons.touche)();
-    }
-    if (res.mort) {
-      partie.score += res.points * (tete ? 1.5 : 1);
-      sons.mortEnnemi();
-      effets.etincelles(point, ennemi.t.couleur, 30, 5, 0.9);
-      if (Math.random() < CHANCE_SOIN) bonus.creer(ennemi.position.x, ennemi.position.z);
-    }
+    toucherEnnemi(ennemi, tete ? degats * 2 : degats, direction, point, tete);
   },
 });
+
+const grenades = new Grenades(scene, camera, effets, monde, {
+  joueur,
+  peutLancer: () => partie.etat === 'jeu',
+  getEnnemis: () => ennemis.liste,
+  onTouche: (ennemi, degats, direction, point) => toucherEnnemi(ennemi, degats, direction, point),
+  onBlesserJoueur: (n) => blesserJoueur(n),
+  onBruit: (position, portee) => ennemis.bruit(position, portee),
+  onLancer() { // l'arme s'abaisse brièvement pendant le lancer
+    armes.changement = Math.max(armes.changement, 0.25);
+    armes.attente = Math.max(armes.attente, 0.25);
+  },
+});
+
+/** Ramassage d'un bonus : renvoie false si le joueur n'en a pas besoin (il reste au sol). */
+function ramasserBonus(type) {
+  if (type === 'soin') {
+    if (joueur.vie >= joueur.vieMax) return false;
+    joueur.soigner(SOIN);
+    sons.soin();
+    hud.message('+ SOIN', 0.8);
+    return true;
+  }
+  if (type === 'grenade') {
+    if (!grenades.ajouter(1)) return false;
+    sons.ramasserGrenade();
+    hud.message('+1 GRENADE', 0.8);
+    return true;
+  }
+  return false;
+}
 
 function blesserJoueur(n) {
   if (partie.etat !== 'jeu') return;
@@ -133,6 +176,7 @@ function gererVagues(dt) {
       const prime = 250 * partie.vague;
       partie.score += prime;
       joueur.soigner(25);
+      grenades.ajouter(1);
       hud.message(`VAGUE TERMINÉE  +${prime}`, 2.5);
     } else if ((partie.entreVagues -= dt) <= 0) {
       prochaineVague();
@@ -147,6 +191,7 @@ function nouvellePartie() {
   effets.vider();
   joueur.reinitialiser();
   armes.reinitialiser();
+  grenades.reinitialiser();
   partie.score = 0;
   partie.vague = 0;
   partie.file = [];
@@ -199,6 +244,7 @@ const tactile = estTactile ? new ControlesTactiles(camera, {
   onSaut(actif) { joueur.entree.saut = actif; },
   onRecharge: () => armes.recharger(),
   onArme: () => armes.changer((armes.indice + 1) % 2),
+  onGrenade: () => grenades.lancer(),
   onPause: mettreEnPause,
 }) : null;
 
@@ -292,14 +338,13 @@ function majJeu(dt) {
   joueur.update(dt);
   armes.update(dt, joueur);
   ennemis.update(dt, joueur, blesserJoueur);
-  bonus.update(dt, joueur, () => {
-    sons.soin();
-    hud.message('+ SOIN', 0.8);
-  });
+  grenades.update(dt);
+  bonus.update(dt, joueur, ramasserBonus);
   gererVagues(dt);
 
   hud.vie(joueur.vie, joueur.vieMax);
   hud.munitions(armes.arme.nom, armes.chargeur, armes.arme.chargeur, armes.recharge > 0);
+  hud.grenades(grenades.stock, grenades.max);
   hud.vague(partie.vague, ennemis.vivants + partie.file.length);
   hud.score(Math.round(partie.score));
 
@@ -310,11 +355,12 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(horloge.getDelta(), 0.05);
   if (partie.etat === 'jeu') majJeu(dt);
   effets.update(dt);
+  grenades.majVisuels(dt);
   hud.update(dt, joueur.vie, joueur.vieMax);
   renderer.render(scene, camera);
 });
 
 // Accès de débogage : ouvrir index.html?debug
 if (new URLSearchParams(location.search).has('debug')) {
-  window.jeu = { partie, joueur, ennemis, armes, commencer, scene, tactile };
+  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile };
 }

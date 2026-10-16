@@ -79,6 +79,20 @@ html, body {
 #mun-chargeur.vide { color: #ff4d4d; }
 #mun-max { font-size: 20px; opacity: 0.7; }
 #recharge-texte { font-size: 14px; color: #ffcc33; min-height: 18px; }
+#grenades {
+  display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.icone-grenade {
+  position: relative; width: 13px; height: 15px; border-radius: 50%;
+  background: #7a8f3e; border: 1px solid rgba(0, 0, 0, 0.5); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.icone-grenade::before { /* tête et levier */
+  content: ''; position: absolute; left: 3px; top: -4px; width: 6px; height: 4px;
+  background: #b9bec5; border-radius: 1px;
+}
+#grenades.vide { color: #ff4d4d; opacity: 0.7; }
+#grenades.plein #grenades-nb { color: #ffcc33; }
 
 #message {
   position: absolute; top: 28%; left: 50%; transform: translateX(-50%);
@@ -186,6 +200,13 @@ body.tactile #tactile { display: block; }
   width: 54px; height: 54px; font-size: 11px;
   right: calc(122px + env(safe-area-inset-right, 0px)); bottom: calc(108px + env(safe-area-inset-bottom, 0px));
 }
+#t-grenade {
+  width: 54px; height: 54px; font-size: 9px; letter-spacing: 0;
+  right: calc(124px + env(safe-area-inset-right, 0px)); bottom: calc(176px + env(safe-area-inset-bottom, 0px));
+  background: rgba(122, 143, 62, 0.35); border-color: rgba(170, 195, 100, 0.85);
+}
+#t-grenade.appuye { background: rgba(122, 143, 62, 0.7); }
+#t-grenade.vide { opacity: 0.4; }
 #t-pause {
   width: 44px; height: 44px; border-radius: 10px;
   left: calc(12px + env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px));
@@ -212,6 +233,7 @@ body.tactile #arme-nom { font-size: 12px; }
 body.tactile #mun-chargeur { font-size: 26px; }
 body.tactile #mun-max { font-size: 14px; }
 body.tactile #recharge-texte { font-size: 12px; }
+body.tactile #grenades { font-size: 14px; }
 body.tactile #haut { top: calc(10px + env(safe-area-inset-top, 0px)); }
 body.tactile #vague { font-size: 18px; }
 body.tactile #message { font-size: 26px; }

@@ -13,6 +13,9 @@ const el = {
   munChargeur: $('mun-chargeur'),
   munMax: $('mun-max'),
   rechargeTexte: $('recharge-texte'),
+  grenades: $('grenades'),
+  grenadesNb: $('grenades-nb'),
+  boutonGrenade: $('t-grenade'),
   message: $('message'),
   ecrans: { menu: $('ecran-menu'), pause: $('ecran-pause'), fin: $('ecran-fin'), classement: $('ecran-classement') },
   finStats: $('fin-stats'),
@@ -56,6 +59,15 @@ export const hud = {
     texte('max', el.munMax, ` / ${max}`);
     el.munChargeur.classList.toggle('vide', chargeur === 0);
     texte('recharge', el.rechargeTexte, enRecharge ? 'Rechargement…' : chargeur === 0 ? 'R pour recharger' : '');
+  },
+
+  grenades(n, max) {
+    if (derniers.grenades === n) return;
+    derniers.grenades = n;
+    el.grenadesNb.textContent = `× ${n}`;
+    el.grenades.classList.toggle('vide', n === 0);
+    el.grenades.classList.toggle('plein', n >= max);
+    el.boutonGrenade.classList.toggle('vide', n === 0);
   },
 
   vague(n, restants) {
