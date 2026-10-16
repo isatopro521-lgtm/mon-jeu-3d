@@ -137,7 +137,7 @@ export class Grenades {
       const fumees = [];
       for (let k = 0; k < BOUFFEES; k++) {
         const f = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: tex, color: 0x4a4d52, transparent: true, opacity: 0, depthWrite: false,
+          map: tex, color: 0x60636a, transparent: true, opacity: 0, depthWrite: false,
         }));
         f.visible = false;
         f.userData.decalage = new THREE.Vector3();
@@ -411,7 +411,7 @@ export class Grenades {
       for (const f of ex.fumees) {
         f.position.addScaledVector(f.userData.decalage, dt * (1 - ks));
         f.scale.setScalar(1.2 + 3 * Math.sqrt(ks));
-        f.material.opacity = 0.6 * Math.min(1, ex.t * 5) * (1 - ks);
+        f.material.opacity = 0.75 * Math.min(1, ex.t * 5) * (1 - ks);
       }
       if (ks >= 1) this.cacherExplosion(ex);
     }
