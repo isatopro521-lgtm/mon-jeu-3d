@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(src/**)",
+      "Edit(lib/**)",
+      "Edit(index.html)",
+      "Edit(style.css)",
+      "Edit(README.md)",
+      "Bash(node --check *)",
+      "Bash(node *)",
+      "Bash(python3 -m http.server *)",
+      "Bash(bash scripts/zip-itch.sh)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(curl -s http://localhost*)"
+    ]
+  }
+}
