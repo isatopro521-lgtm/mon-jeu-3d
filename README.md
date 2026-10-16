@@ -30,6 +30,8 @@ aucune image à télécharger).
 - Interface : boussole, minicarte « Zone Nexus » (ennemis en rouge, compte à rebours entre les vagues),
   vie + armure, munitions, grenades.
 - Score et record (gardé dans le navigateur), classement en ligne.
+- **Qualité graphique** (bouton dans le menu et la pause) : Auto (par défaut), Haute, Moyenne, Basse.
+  En Auto, le jeu baisse tout seul la qualité s'il passe sous 40 images/s (choix mémorisé).
 
 ### Lancer le jeu
 
@@ -142,6 +144,7 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/ciel.js` | Ciel (dégradé + soleil), nuages, brouillard, lumières, reflets |
 | `src/textures.js` | Textures procédurales (canvas) et logo |
 | `src/tempete.js` | Tempête Nexus (ciel rouge, vortex, éclairs, pluie) |
+| `src/qualite.js` | Niveaux de qualité (haute/moyenne/basse) et mode Auto selon les images/s |
 | `src/enemies.js` | Ennemis (soldats, mech-araignée), IA, projectiles |
 | `src/weapons.js` | Armes, tir par lancer de rayon, rechargement |
 | `src/grenades.js` | Grenades : lancer, rebonds, explosion à dégâts de zone, effets |

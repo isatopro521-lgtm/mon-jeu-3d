@@ -76,6 +76,13 @@ export class TempeteNexus {
     this.pluie.frustumCulled = false;
     this.pluie.visible = false;
     scene.add(this.pluie);
+    this.nbActives = this.nbGouttes;
+  }
+
+  /** Part des gouttes dessinées et animées (réglage de qualité, 0..1). */
+  densitePluie(f) {
+    this.nbActives = Math.max(1, Math.floor(this.nbGouttes * f));
+    this.pluie.geometry.setDrawRange(0, this.nbActives * 2);
   }
 
   get active() { return this.cible > 0; }
@@ -142,7 +149,7 @@ export class TempeteNexus {
     if (this.k > 0) {
       const g = this.gouttes;
       const cy = this.camera.position.y;
-      for (let i = 0; i < this.nbGouttes; i++) {
+      for (let i = 0; i < this.nbActives; i++) {
         const o = i * 6;
         g[o + 1] -= VITESSE_PLUIE * dt; g[o + 4] -= VITESSE_PLUIE * dt;
         g[o] -= 2 * dt; g[o + 3] -= 2 * dt;

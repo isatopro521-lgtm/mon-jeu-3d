@@ -20,6 +20,7 @@
 </head>
 <body>
   <div id="jeu"></div>
+  <div id="ips" class="cache"></div>
 
   <!-- Logo (réutilisé dans le menu et les écrans) -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -124,6 +125,7 @@
         <button id="btn-jouer">Jouer</button>
         <button id="btn-classement" class="secondaire">Classement</button>
       </div>
+      <button class="secondaire btn-qualite" type="button">Qualité : Auto</button>
       <p id="record-menu"></p>
       <div class="commandes commandes-pc">
         <div><kbd>Z Q S D</kbd> / <kbd>W A S D</kbd><span>Se déplacer</span></div>
@@ -145,8 +147,8 @@
         <div><kbd>GRENADE</kbd><span>Lancer une grenade</span></div>
         <div><kbd>❚❚</kbd><span>Pause</span></div>
       </div>
-      <p class="note note-pc">Armure : absorbe les dégâts avant la vie (+25 par vague). Fonctionne aussi sur téléphone et tablette.</p>
-      <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage.</p>
+      <p class="note note-pc">Armure : absorbe les dégâts avant la vie (+25 par vague). Qualité Auto : baisse les graphismes si le jeu rame. Fonctionne aussi sur téléphone et tablette.</p>
+      <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage. Si le jeu rame, choisis « Qualité : Basse ».</p>
     </div>
   </div>
 
@@ -155,6 +157,7 @@
       <svg class="logo petit"><use href="#logo"/></svg>
       <h2>Pause</h2>
       <button id="btn-reprendre">Reprendre</button>
+      <button class="secondaire btn-qualite" type="button">Qualité : Auto</button>
     </div>
   </div>
 

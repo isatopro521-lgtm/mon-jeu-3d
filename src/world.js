@@ -323,6 +323,8 @@ export function creerMonde(scene, { tailleOmbres = 2048, qualite = 'haute', rend
     surfaces: [sol, ...obstacles], // tout ce que les balles peuvent toucher
     ciel,
     decor,
+    herbe,
+    buissonsArene: buissons,
     update(dt) {
       temps += dt;
       ciel.update(dt, temps);

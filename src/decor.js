@@ -589,6 +589,7 @@ export function creerDecor(scene, { qualite = 'haute' } = {}) {
 
   return {
     foret, buissons, rochers, terrain, montagnes, mega,
+    eau: [eau.cascade, eau.ecume], // détails d'eau (masqués en qualité basse)
     update(dt, t) {
       eau.normales.offset.set(t * 0.012, t * 0.007);
       eau.texCascade.offset.y = (t * 0.9) % 1;

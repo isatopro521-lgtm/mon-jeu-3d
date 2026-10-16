@@ -12,6 +12,7 @@ import { melanger } from './utils.js';
 import { ControlesTactiles, estTactile, pleinEcranPaysage } from './touch.js';
 import { classement, lirePseudo, nettoyerPseudo } from './scores.js';
 import { TempeteNexus } from './tempete.js';
+import { Qualite } from './qualite.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
@@ -62,6 +63,14 @@ const joueur = new Joueur(camera, document.body, monde.boites);
 const ennemis = new GestionEnnemis(scene, monde, effets);
 const bonus = new Bonus(scene);
 const tempete = new TempeteNexus(scene, camera, monde.ciel, hud, { qualite: estTactile ? 'basse' : 'haute' });
+
+// Qualité graphique (Auto par défaut) : bouton dans le menu et l'écran pause
+const boutonsQualite = document.querySelectorAll('.btn-qualite');
+const qualite = new Qualite({
+  renderer, scene, monde, tempete, estTactile,
+  onChange: (q) => { for (const b of boutonsQualite) b.textContent = q.libelle; },
+});
+for (const b of boutonsQualite) b.addEventListener('click', () => qualite.cycler());
 
 const partie = {
   etat: 'menu', // menu | jeu | pause | fin
@@ -229,6 +238,7 @@ function nouvellePartie() {
 
 function commencer() {
   if (partie.etat === 'menu' || partie.etat === 'fin') nouvellePartie();
+  qualite.reprise();
   partie.etat = 'jeu';
   armes.actif = true;
   hud.ecran(null);
@@ -404,8 +414,23 @@ function majJeu(dt) {
   if (joueur.mort) finDePartie();
 }
 
+const elIps = new URLSearchParams(location.search).has('debug') ? document.getElementById('ips') : null;
+elIps?.classList.remove('cache');
+let ipsAffiche = 0, imagesIps = 0, tempsIps = 0;
+
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(horloge.getDelta(), 0.05);
+  const dtReel = horloge.getDelta();
+  const dt = Math.min(dtReel, 0.05);
+  qualite.mesurer(dtReel, partie.etat === 'jeu' && !document.hidden);
+  if (elIps) {
+    imagesIps++;
+    tempsIps += dtReel;
+    if ((ipsAffiche -= dtReel) <= 0) {
+      ipsAffiche = 0.5;
+      elIps.textContent = `${(imagesIps / tempsIps).toFixed(0)} i/s · ${qualite.niveau} · ${renderer.info.render.calls} appels`;
+      imagesIps = tempsIps = 0;
+    }
+  }
   if (partie.etat === 'jeu') majJeu(dt);
   else if (partie.etat === 'menu' && !joueur.controles.isLocked) cameraMenu(dt);
   armes.support.visible = partie.etat !== 'menu';
@@ -419,5 +444,5 @@ renderer.setAnimationLoop(() => {
 
 // Accès de débogage : ouvrir index.html?debug
 if (new URLSearchParams(location.search).has('debug')) {
-  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets };
+  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets, qualite };
 }

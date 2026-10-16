@@ -441,3 +441,14 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--orange-2); 
   .classement li { padding: 3px 10px; }
   #pseudo { font-size: 16px; padding: 8px 12px; }
 }
+
+/* ---------- Qualité graphique ---------- */
+.btn-qualite {
+  align-self: flex-start; font-size: 14px; letter-spacing: 2px; padding: 9px 22px; min-height: 44px;
+}
+.panneau .btn-qualite { align-self: center; }
+@media (max-width: 700px) { .btn-qualite { align-self: center; } }
+#ips {
+  position: fixed; left: 50%; bottom: 4px; transform: translateX(-50%); z-index: 5; pointer-events: none;
+  font-size: 11px; letter-spacing: 1px; color: #9fe39f; background: rgba(0, 0, 0, 0.45); padding: 1px 6px;
+}
