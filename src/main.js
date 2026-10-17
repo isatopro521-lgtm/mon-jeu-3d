@@ -14,6 +14,7 @@ import { classement, lirePseudo, nettoyerPseudo } from './scores.js';
 import { TempeteNexus } from './tempete.js';
 import { Qualite } from './qualite.js';
 import { initInstallation } from './installation.js';
+import { lireDefi, partager, messagePartage, afficherBandeauDefi, resultatDefi } from './partage.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
 const DELAI_APPARITION = 0.7;
@@ -266,7 +267,9 @@ function finDePartie() {
     ecrireRecord(score);
   }
   hud.fin(score, partie.vague, partie.record, nouveauRecord);
+  afficherFinDefi(score, partie.vague);
   hud.record(partie.record);
+  majBoutonPartageMenu();
   hud.ecran('fin');
   preparerEnvoiScore(score, partie.vague);
   joueur.controles.unlock();
@@ -363,7 +366,51 @@ $('btn-classement').addEventListener('click', () => {
 });
 $('btn-retour').addEventListener('click', () => hud.ecran('menu'));
 
+// ---------- Partage et défis entre amis ----------
+// Lien ?defi=<score>&nom=<pseudo> : bandeau dans le menu, résultat en fin de partie.
+const defi = lireDefi();
+afficherBandeauDefi($('defi-bandeau'), defi);
+let finale = { score: 0, vague: 0 }; // dernière partie terminée (pour « Défier un ami »)
+
+function afficherFinDefi(score, vague) {
+  finale = { score, vague };
+  $('partage-etat-fin').textContent = '';
+  const el = $('fin-defi');
+  el.textContent = resultatDefi(defi, score);
+  el.classList.toggle('cache', !defi);
+  el.classList.toggle('gagne', !!defi && score > defi.score);
+  el.classList.toggle('perdu', !!defi && score <= defi.score);
+}
+
+function majBoutonPartageMenu() {
+  $('btn-partager-menu').textContent = partie.record > 0 ? 'Défier un ami' : 'Partager le jeu';
+}
+
+const minuteursEtat = new Map(); // un minuteur par message de confirmation (menu, fin)
+async function boutonPartager(bouton, etat, score, vague, nom) {
+  if (bouton.disabled) return;
+  bouton.disabled = true;
+  try {
+    const res = await partager({ score, vague, nom });
+    etat.textContent = messagePartage(res, score);
+    clearTimeout(minuteursEtat.get(etat));
+    // en cas d'échec, le lien reste affiché pour qu'on puisse le copier à la main
+    if (res.resultat !== 'echec') minuteursEtat.set(etat, setTimeout(() => { etat.textContent = ''; }, 6000));
+  } finally {
+    bouton.disabled = false;
+  }
+}
+
+$('btn-partager-menu').addEventListener('click', (e) => {
+  boutonPartager(e.currentTarget, $('partage-etat-menu'), partie.record, 0, lirePseudo());
+});
+$('btn-partager-fin').addEventListener('click', (e) => {
+  const nom = nettoyerPseudo($('pseudo').value) || lirePseudo();
+  boutonPartager(e.currentTarget, $('partage-etat-fin'), finale.score, finale.vague, nom);
+});
+
 hud.record(partie.record);
+majBoutonPartageMenu();
 hud.ecran('menu');
 
 // ---------- App installable (PWA) ----------
@@ -455,5 +502,5 @@ renderer.setAnimationLoop(() => {
 
 // Accès de débogage : ouvrir index.html?debug
 if (new URLSearchParams(location.search).has('debug')) {
-  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets, qualite };
+  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets, qualite, defi, finDePartie };
 }

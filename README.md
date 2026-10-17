@@ -30,6 +30,8 @@ aucune image à télécharger).
 - Interface : boussole, minicarte « Zone Nexus » (ennemis en rouge, compte à rebours entre les vagues),
   vie + armure, munitions, grenades.
 - Score et record (gardé dans le navigateur), classement en ligne.
+- **Défis entre amis** : bouton « Défier un ami » en fin de partie (et dans le menu) ; l'ami reçoit un lien
+  avec le score à battre, et le jeu lui dit à la fin s'il a relevé le défi.
 - **Qualité graphique** (bouton dans le menu et la pause) : Auto (par défaut), Haute, Moyenne, Basse.
 - **App installable (PWA)** : le jeu s'installe sur l'écran d'accueil (iPhone, Android, PC), s'ouvre en plein écran
   et fonctionne **hors ligne** (service worker).
@@ -113,8 +115,37 @@ https://isatopro521-lgtm.github.io/mon-jeu-3d/confidentialite.html).
    et *Fullscreen button*.
 4. Ajouter une description, des captures d'écran, puis *Save* et passer la page en *Public*.
 
+Les textes de la page itch.io (accroche, description, tags) sont prêts dans [`PUBLIER-ITCH.md`](PUBLIER-ITCH.md).
+
 Le jeu n'a besoin d'aucun serveur ni d'aucun site extérieur : la bibliothèque Three.js
 (licence MIT) est incluse dans `lib/three/`.
+
+### Partager le jeu et défier ses amis
+
+**Jouer** : https://isatopro521-lgtm.github.io/mon-jeu-3d/
+
+- **Bouton « Défier un ami »** sur l'écran de fin de partie (et « Partager le jeu » / « Défier un ami » dans le menu,
+  avec le record) : sur téléphone, il ouvre le menu de partage du téléphone (WhatsApp, Snapchat, SMS…) ;
+  sur ordinateur, il **copie le lien** dans le presse-papiers (message de confirmation sous le bouton).
+- Le lien contient le score à battre : `https://isatopro521-lgtm.github.io/mon-jeu-3d/?defi=12500&nom=Isa`.
+- Quand un ami ouvre ce lien, le menu affiche **« Isa te défie : bats 12 500 points ! »**, et l'écran de fin
+  lui dit s'il a relevé le défi (ou combien de points il lui manque).
+- Sécurité : `defi` doit être un nombre entier entre 1 et 10 000 000, `nom` est réduit à 16 lettres/chiffres ;
+  sinon le lien est ignoré. Le texte est toujours affiché comme du texte (jamais interprété comme du HTML).
+- Code : `src/partage.js`.
+
+**Aperçu du lien** : quand on colle l'adresse du jeu dans WhatsApp, Discord, Snapchat, X, Facebook…,
+une carte avec image, titre et description s'affiche (balises Open Graph et Twitter Card dans `index.html`,
+image `captures/apercu-partage.jpg` en 1200 × 630, refaite avec `node scripts/generer-apercu.mjs`).
+Les applis gardent l'aperçu en mémoire un moment : un changement d'image peut mettre du temps à apparaître.
+
+**Référencement** : adresse canonique, données structurées `VideoGame` (JSON-LD) dans `index.html`,
+`robots.txt` et `sitemap.xml` (copiés sur le site par le workflow). Pour apparaître plus vite dans Google :
+ajouter le site dans [Google Search Console](https://search.google.com/search-console) et y envoyer
+`https://isatopro521-lgtm.github.io/mon-jeu-3d/sitemap.xml`.
+
+**itch.io et réseaux sociaux** : tout est expliqué, avec les textes prêts à copier, dans
+[`PUBLIER-ITCH.md`](PUBLIER-ITCH.md) (page itch.io, tags, messages pour Discord, TikTok, Reddit r/WebGames, X…).
 
 ### Classement
 
@@ -204,13 +235,17 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/audio.js` | Sons générés avec la Web Audio API |
 | `src/utils.js` | Collisions, bruit procédural, fusion de géométries |
 | `src/installation.js` | Aide à l'installation de l'app (bannière iPhone, bouton « Installer le jeu ») |
+| `src/partage.js` | Partage du jeu, liens de défi `?defi=…&nom=…`, bandeau et résultat du défi |
+| `robots.txt`, `sitemap.xml` | Référencement par les moteurs de recherche |
+| `PUBLIER-ITCH.md` | Textes et étapes pour publier sur itch.io et faire connaître le jeu |
 | `sw.js` | Service worker : cache des fichiers du jeu, jeu hors ligne, mises à jour |
 | `manifest.webmanifest` | Manifest de l'app (nom, icônes, plein écran paysage, captures) |
 | `confidentialite.html` | Page de confidentialité (demandée par les stores) |
 | `icons/`, `captures/` | Icônes de l'app et captures d'écran pour les stores |
 
 `lib/three/` contient Three.js 0.160.0. `scripts/zip-itch.sh` fabrique le zip pour itch.io ;
-`scripts/generer-icones.mjs` et `scripts/generer-captures.mjs` refont les icônes et les captures.
+`scripts/generer-icones.mjs` et `scripts/generer-captures.mjs` refont les icônes et les captures,
+`scripts/generer-apercu.mjs` l'image d'aperçu des liens partagés.
 
 Ajouter `?debug` à l'URL expose l'objet `window.jeu` pour le débogage.
 
