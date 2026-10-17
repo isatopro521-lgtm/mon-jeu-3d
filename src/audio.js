@@ -21,6 +21,11 @@ export function initAudio() {
   }
 }
 
+/** Contexte audio partagé (utilisé par le film pour sa musique) : null tant que initAudio() n'a pas réussi. */
+export function contexteAudio() {
+  return ctx ? { ctx, maitre } : null;
+}
+
 function bruit(duree, frequence, volume, delai = 0, type = 'lowpass') {
   if (!ctx) return;
   const t = ctx.currentTime + delai;

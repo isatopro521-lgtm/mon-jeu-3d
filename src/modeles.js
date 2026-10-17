@@ -62,6 +62,9 @@ const FACTIONS = {
   // tireur : tenue urbaine gris-bleu, plaques bleu acier
   tireur: { tenue: [0x3a4148, 0.9, 0], casque: [0x2a3036, 0.45, 0.3], poches: [0x2c3238, 0.85, 0.05],
     sangles: [0x585f66, 0.9, 0], plaques: [0x24405e, 0.55, 0.15] },
+  // héroïne du film (film.js) : tenue noire, plaques orange de l'avant-poste Nexus
+  heros: { tenue: [0x26292c, 0.88, 0], casque: [0x1c1e21, 0.4, 0.35], poches: [0x2e3134, 0.85, 0.05],
+    sangles: [0x4a4d50, 0.9, 0], plaques: [0xb5541a, 0.5, 0.2] },
 };
 
 const cachePalettes = {};
