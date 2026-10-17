@@ -52,7 +52,48 @@ function ton(f0, f1, duree, volume, type = 'square', delai = 0) {
   osc.stop(t + duree);
 }
 
+// Voix des ennemis : « aboiement radio » filtré (masque à gaz), court et discret.
+// Une seule voix à la fois au maximum toutes les `ecart` secondes, pour ne jamais saturer.
+let prochaineVoix = 0;
+function voix(f0, f1, duree, volume, formant, type = 'sawtooth', ecart = 0.18) {
+  if (!ctx || ctx.currentTime < prochaineVoix) return;
+  prochaineVoix = ctx.currentTime + ecart;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type = type;
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(f1, t + duree);
+  // vibrato rapide : rend la voix moins « bip »
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 28 + Math.random() * 10;
+  const prof = ctx.createGain();
+  prof.gain.value = f0 * 0.06;
+  lfo.connect(prof).connect(osc.frequency);
+  const filtre = ctx.createBiquadFilter();
+  filtre.type = 'bandpass';
+  filtre.frequency.value = formant;
+  filtre.Q.value = 3;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(volume, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t + duree);
+  osc.connect(filtre).connect(g).connect(maitre);
+  osc.start(t); lfo.start(t);
+  osc.stop(t + duree); lfo.stop(t + duree);
+}
+
 export const sons = {
+  // Voix : `grave` = true pour le mech (grondement mécanique)
+  alerte: (grave = false) => grave
+    ? voix(70, 110, 0.35, 0.22, 380, 'sawtooth', 0.25)
+    : voix(260 + Math.random() * 60, 420, 0.16, 0.16, 1400, 'sawtooth', 0.25),
+  douleur: (grave = false) => grave
+    ? voix(90, 55, 0.2, 0.16, 300)
+    : voix(330 + Math.random() * 80, 190, 0.13, 0.13, 1100),
+  criMort: (grave = false) => grave
+    ? voix(110, 30, 0.7, 0.22, 260, 'sawtooth', 0.1)
+    : voix(300 + Math.random() * 60, 90, 0.32, 0.15, 900, 'sawtooth', 0.1),
+
   tir: () => { bruit(0.12, 2600, 0.5); ton(170, 55, 0.08, 0.25); },
   pompe: () => { bruit(0.35, 1300, 0.9); ton(110, 35, 0.18, 0.4); },
   vide: () => ton(900, 700, 0.03, 0.1),

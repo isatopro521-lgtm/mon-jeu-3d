@@ -17,6 +17,11 @@ aucune image à télécharger).
   - **Soldat** (visière rouge) : rapide, attaque au corps à corps (coup de crosse) ;
   - **Tireur** (visière bleue) : garde ses distances, se décale sur le côté et tire ;
   - **Mech-araignée** (yeux rouges, à partir de la vague 3) : lent, très blindé, se cabre et écrase.
+- **Ennemis vivants** (animations procédurales, sans fichier) : respiration, marche différente pour chacun,
+  pauses où ils regardent autour d'eux, tête qui suit le joueur, icône « ! » + visière qui clignote
+  quand ils te repèrent, sursaut et pas de côté quand ils sont touchés, petits cris radio,
+  chute (en avant ou en arrière selon le tir) puis dissolution en étincelles.
+  L'arme du joueur « respire » doucement à l'arrêt.
 - **2 armes** : fusil d'assaut automatique à lunette et fusil à pompe (9 plombs).
   Munitions : chargeur + **réserve** (affichées « 30 | 120 ») ; caisses de munitions lâchées par les ennemis,
   réserve remise au moins au niveau de départ à chaque fin de vague.
