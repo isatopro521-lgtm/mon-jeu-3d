@@ -28,6 +28,7 @@ const FICHIERS = [
   'src/grenades.js',
   'src/hud.js',
   'src/installation.js',
+  'src/partage.js',
   'src/pickups.js',
   'src/player.js',
   'src/qualite.js',

@@ -1,0 +1,5 @@
+# NEXUS FRONTIER — tout le site peut être exploré par les moteurs de recherche.
+User-agent: *
+Allow: /
+
+Sitemap: https://isatopro521-lgtm.github.io/mon-jeu-3d/sitemap.xml

@@ -9,7 +9,51 @@
   <meta name="apple-mobile-web-app-title" content="Nexus">
   <meta name="application-name" content="NEXUS FRONTIER">
   <title>NEXUS FRONTIER — FPS tactique &amp; survie</title>
-  <meta name="description" content="NEXUS FRONTIER : FPS tactique et survie dans le navigateur (PC et téléphone).">
+  <meta name="description" content="NEXUS FRONTIER : FPS de survie gratuit, jouable direct dans le navigateur sur PC et téléphone, sans installation. Repousse les vagues de soldats et de mechs-araignées, puis défie tes amis de battre ton score !">
+  <link rel="canonical" href="https://isatopro521-lgtm.github.io/mon-jeu-3d/">
+  <!-- Aperçu du lien quand on le partage (WhatsApp, Discord, Snapchat, X, Facebook…) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NEXUS FRONTIER">
+  <meta property="og:locale" content="fr_FR">
+  <meta property="og:url" content="https://isatopro521-lgtm.github.io/mon-jeu-3d/">
+  <meta property="og:title" content="NEXUS FRONTIER — FPS gratuit dans ton navigateur">
+  <meta property="og:description" content="Survis aux vagues de soldats et de mechs-araignées, affronte la Tempête Nexus et bats le score de tes amis. Gratuit, sur PC et téléphone, sans rien installer.">
+  <meta property="og:image" content="https://isatopro521-lgtm.github.io/mon-jeu-3d/captures/apercu-partage.jpg">
+  <meta property="og:image:secure_url" content="https://isatopro521-lgtm.github.io/mon-jeu-3d/captures/apercu-partage.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="NEXUS FRONTIER : un soldat armé d'un fusil face à des ennemis, devant une tour géante et des montagnes">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="NEXUS FRONTIER — FPS gratuit dans ton navigateur">
+  <meta name="twitter:description" content="Survis aux vagues d'ennemis et bats le score de tes amis. Gratuit, PC et téléphone, sans installation.">
+  <meta name="twitter:image" content="https://isatopro521-lgtm.github.io/mon-jeu-3d/captures/apercu-partage.jpg">
+  <meta name="twitter:image:alt" content="NEXUS FRONTIER : un soldat armé d'un fusil face à des ennemis, devant une tour géante et des montagnes">
+  <!-- Données structurées pour les moteurs de recherche -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "VideoGame",
+      "name": "NEXUS FRONTIER",
+      "alternateName": "Nexus Frontier",
+      "description": "FPS de survie gratuit, jouable dans le navigateur sur PC et téléphone : défends l'avant-poste Nexus contre des vagues de soldats et de mechs-araignées, affronte la Tempête Nexus et défie tes amis.",
+      "url": "https://isatopro521-lgtm.github.io/mon-jeu-3d/",
+      "image": "https://isatopro521-lgtm.github.io/mon-jeu-3d/captures/apercu-partage.jpg",
+      "screenshot": [
+        "https://isatopro521-lgtm.github.io/mon-jeu-3d/captures/capture-menu.png",
+        "https://isatopro521-lgtm.github.io/mon-jeu-3d/captures/capture-combat.png"
+      ],
+      "inLanguage": "fr",
+      "genre": ["FPS", "Action", "Survie", "Tir à la première personne"],
+      "gamePlatform": ["Navigateur web", "PC", "Android", "iOS"],
+      "applicationCategory": "Game",
+      "operatingSystem": "Web browser",
+      "playMode": "SinglePlayer",
+      "numberOfPlayers": { "@type": "QuantitativeValue", "value": 1 },
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" }
+    }
+  </script>
   <meta name="theme-color" content="#14171b">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -128,9 +172,14 @@
       </div>
       <p class="accroche">Défends l'avant-poste Nexus contre des vagues de soldats et de mechs-araignées.
         Toutes les 5 vagues, la <strong>Tempête Nexus</strong> s'abat sur l'arène.</p>
+      <p id="defi-bandeau" class="defi cache" role="status"></p>
       <div class="boutons">
         <button id="btn-jouer">Jouer</button>
         <button id="btn-classement" class="secondaire">Classement</button>
+      </div>
+      <div class="ligne-partage">
+        <button id="btn-partager-menu" class="secondaire btn-partager" type="button">Partager le jeu</button>
+        <span id="partage-etat-menu" class="partage-etat" role="status"></span>
       </div>
       <button class="secondaire btn-qualite" type="button">Qualité : Auto</button>
       <div id="installer" class="installer cache" role="region" aria-label="Installer le jeu">
@@ -162,6 +211,7 @@
       </div>
       <p class="note note-pc">Armure : absorbe les dégâts avant la vie (+25 par vague). Qualité Auto : baisse les graphismes si le jeu rame. Fonctionne aussi sur téléphone et tablette.</p>
       <p class="note note-tactile">Conseil : tiens ton téléphone en mode paysage. Si le jeu rame, choisis « Qualité : Basse ».</p>
+      <p class="note note-defi">Après une partie, touche « Défier un ami » : ton ami reçoit un lien avec ton score à battre.</p>
       <p class="note note-app">Installe le jeu comme une app pour jouer en plein écran, même hors ligne.
         <a class="lien-discret" href="confidentialite.html">Confidentialité</a></p>
     </div>
@@ -181,6 +231,7 @@
       <svg class="logo petit"><use href="#logo"/></svg>
       <h2>Tombé au combat</h2>
       <p id="fin-stats"></p>
+      <p id="fin-defi" class="defi-resultat cache" role="status"></p>
       <form id="form-score" autocomplete="off">
         <label for="pseudo">Ton pseudo</label>
         <input id="pseudo" name="pseudo" maxlength="16" placeholder="Ton pseudo" enterkeyhint="send">
@@ -188,7 +239,11 @@
       </form>
       <p id="score-etat" class="note" role="status"></p>
       <ol id="fin-classement" class="classement"></ol>
-      <button id="btn-rejouer">Rejouer</button>
+      <div class="boutons boutons-fin">
+        <button id="btn-rejouer">Rejouer</button>
+        <button id="btn-partager-fin" class="secondaire btn-partager" type="button">Défier un ami</button>
+      </div>
+      <p id="partage-etat-fin" class="partage-etat" role="status"></p>
     </div>
   </div>
 

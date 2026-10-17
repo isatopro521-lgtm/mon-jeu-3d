@@ -491,3 +491,32 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--orange-2); 
   .installer { padding: 5px 6px 5px 10px; font-size: 13px; }
   .installer-fermer { width: 32px; height: 32px; }
 }
+
+/* ---------- Partage et défis entre amis ---------- */
+.defi {
+  margin: 0; max-width: 520px; padding: 9px 14px; font-size: 16px; line-height: 1.35; text-align: left;
+  background: linear-gradient(90deg, rgba(224, 48, 42, 0.28), rgba(20, 23, 28, 0.75));
+  border: 1px solid rgba(255, 122, 30, 0.55); border-left: 3px solid var(--rouge);
+  overflow-wrap: anywhere;
+}
+.defi strong { color: var(--orange-2); font-weight: 700; }
+.defi .defi-score { color: #fff; white-space: nowrap; }
+.ligne-partage { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.btn-partager { font-size: 14px; letter-spacing: 2px; padding: 9px 22px; min-height: 44px; }
+.boutons-fin { justify-content: center; align-items: center; }
+.boutons-fin .btn-partager { font-size: 17px; padding: 10px 28px; }
+.partage-etat { margin: 0; font-size: 13px; color: var(--orange-2); max-width: 440px; overflow-wrap: anywhere;
+  user-select: text; -webkit-user-select: text; }
+.partage-etat:empty { display: none; }
+.defi-resultat { margin: 0; font-size: 16px; font-weight: 700; max-width: 440px; color: var(--texte); }
+.defi-resultat.gagne { color: #6be38f; }
+.defi-resultat.perdu { color: var(--orange-2); }
+@media (max-width: 700px) {
+  .ligne-partage { justify-content: center; }
+  .defi { text-align: center; }
+}
+@media (max-height: 500px) {
+  .defi { padding: 5px 10px; font-size: 14px; }
+  .note-defi { display: none; }
+  .boutons-fin .btn-partager { font-size: 15px; padding: 8px 22px; }
+}
