@@ -14,6 +14,9 @@ import { classement, lirePseudo, nettoyerPseudo } from './scores.js';
 import { TempeteNexus } from './tempete.js';
 import { Qualite } from './qualite.js';
 import { initInstallation } from './installation.js';
+import { chargerModeles } from './modeles.js';
+import { PostTraitement } from './postprocess.js';
+import { DIRECTION_SOLEIL } from './ciel.js';
 import { lireDefi, partager, messagePartage, afficherBandeauDefi, resultatDefi } from './partage.js';
 
 const MAX_ENNEMIS_SIMULTANES = 12;
@@ -34,7 +37,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, estTactile ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap; // filtrage élargi réglé par la qualité (ombres douces)
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.getElementById('jeu').appendChild(renderer.domElement);
 
@@ -66,10 +69,13 @@ const ennemis = new GestionEnnemis(scene, monde, effets);
 const bonus = new Bonus(scene);
 const tempete = new TempeteNexus(scene, camera, monde.ciel, hud, { qualite: estTactile ? 'basse' : 'haute' });
 
+// Post-traitement (halo, vignette, MSAA) : activé par la qualité haute seulement
+const post = new PostTraitement(renderer, { soleil: DIRECTION_SOLEIL });
+
 // Qualité graphique (Auto par défaut) : bouton dans le menu et l'écran pause
 const boutonsQualite = document.querySelectorAll('.btn-qualite');
 const qualite = new Qualite({
-  renderer, scene, monde, tempete, estTactile,
+  renderer, scene, monde, tempete, estTactile, post,
   onChange: (q) => { for (const b of boutonsQualite) b.textContent = q.libelle; },
 });
 for (const b of boutonsQualite) b.addEventListener('click', () => qualite.cycler());
@@ -121,6 +127,8 @@ const armes = new Armes(camera, effets, {
 });
 
 armes.adapterEcran(innerWidth / innerHeight);
+// Modèles 3D réalistes : chargés en arrière-plan ; en attendant (ou en cas d'échec), modèles simplifiés
+chargerModeles().then(() => armes.utiliserModeles());
 addEventListener('resize', () => armes.adapterEcran(innerWidth / innerHeight));
 
 const grenades = new Grenades(scene, camera, effets, monde, {
@@ -497,10 +505,10 @@ renderer.setAnimationLoop(() => {
   effets.update(dt);
   grenades.majVisuels(dt);
   hud.update(dt, joueur.vie, joueur.vieMax);
-  renderer.render(scene, camera);
+  post.rendre(scene, camera);
 });
 
 // Accès de débogage : ouvrir index.html?debug
 if (new URLSearchParams(location.search).has('debug')) {
-  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets, qualite, defi, finDePartie };
+  window.jeu = { partie, joueur, ennemis, armes, grenades, bonus, commencer, scene, tactile, renderer, camera, monde, tempete, effets, qualite, defi, finDePartie, post };
 }

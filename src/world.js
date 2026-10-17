@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { aleatoire, fbm, lisse, Assemblage } from './utils.js';
 import {
   textureSol, textureTouffe, textureGrillage, textureConteneur, textureBanniere,
-  textureAtlasIndustriel, uvAtlas, ZONES,
+  textureAtlasIndustriel, uvAtlas, ZONES, textureBeton, textureMetalUse, textureToile,
+  normalesDepuis, rugositeDepuis, uvMonde,
 } from './textures.js';
+import { declarerLumineux } from './postprocess.js';
 import { creerCiel } from './ciel.js';
 import { creerDecor } from './decor.js';
 
@@ -63,7 +65,10 @@ export function creerMonde(scene, { tailleOmbres = 2048, qualite = 'haute', rend
     }
     geoSol.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   }
-  const solVisuel = new THREE.Mesh(geoSol, new THREE.MeshLambertMaterial({ map: texSol, vertexColors: true }));
+  // Lambert (léger, même sur téléphone) + relief des cailloux et touffes
+  const solVisuel = new THREE.Mesh(geoSol, new THREE.MeshLambertMaterial({
+    map: texSol, vertexColors: true, normalMap: normalesDepuis(texSol, { force: 1.0, taille: 256 }),
+  }));
   solVisuel.receiveShadow = true;
   scene.add(solVisuel);
   // Sol « logique » pour les impacts de balles : 2 triangles seulement
@@ -249,15 +254,41 @@ export function creerMonde(scene, { tailleOmbres = 2048, qualite = 'haute', rend
     scene.add(m);
     return m;
   };
-  ajouterMesh(industriel, new THREE.MeshStandardMaterial({ map: textureAtlasIndustriel(), metalness: 0.45, roughness: 0.55 }));
-  ajouterMesh(sacs, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), { couleurs: true });
-  ajouterMesh(metal, new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.6, roughness: 0.45 }), { couleurs: true });
-  ajouterMesh(beton, new THREE.MeshStandardMaterial({ color: 0x8d8a82, roughness: 0.95 }));
+  // Matières PBR : couleur + relief (normales) + rugosité, générés une fois (textures.js)
+  const atlas = textureAtlasIndustriel();
+  ajouterMesh(industriel, new THREE.MeshStandardMaterial({
+    map: atlas, metalness: 0.45, roughness: 1,
+    normalMap: normalesDepuis(atlas, { force: 2.2, taille: 1024 }), normalScale: new THREE.Vector2(1, 1),
+    roughnessMap: rugositeDepuis(atlas, { base: 0.55, variation: 0.35, taille: 512 }),
+  }));
+  const toile = textureToile();
+  toile.repeat.set(3, 2);
+  ajouterMesh(sacs, new THREE.MeshLambertMaterial({
+    vertexColors: true, flatShading: true, map: toile, normalMap: normalesDepuis(toile, { force: 2.5, taille: 128 }),
+  }), { couleurs: true });
+  const usure = textureMetalUse();
+  const meshMetal = ajouterMesh(metal, new THREE.MeshStandardMaterial({
+    vertexColors: true, map: usure, metalness: 0.6, roughness: 1,
+    normalMap: normalesDepuis(usure, { force: 1.2, taille: 256 }),
+    roughnessMap: rugositeDepuis(usure, { base: 0.45, variation: 0.3 }),
+  }), { couleurs: true });
+  if (meshMetal) uvMonde(meshMetal.geometry, 1.5);
+  const texBeton = textureBeton();
+  const meshBeton = ajouterMesh(beton, new THREE.MeshStandardMaterial({
+    map: texBeton, color: 0xb3afa6, roughness: 1, metalness: 0,
+    normalMap: normalesDepuis(texBeton, { force: 2.5, taille: 256 }),
+    roughnessMap: rugositeDepuis(texBeton, { base: 0.88, variation: 0.12 }),
+  }));
+  if (meshBeton) uvMonde(meshBeton.geometry, 2.5);
   ajouterMesh(grillage, new THREE.MeshStandardMaterial({
     map: texGrillage, alphaTest: 0.4, side: THREE.DoubleSide, metalness: 0.5, roughness: 0.5, color: 0x9aa0a8,
   }), { ombre: false });
-  ajouterMesh(conteneurs, new THREE.MeshStandardMaterial({ map: texConteneur, vertexColors: true, metalness: 0.35, roughness: 0.6 }), { couleurs: true });
-  ajouterMesh(neon, new THREE.MeshBasicMaterial({ color: 0xff7a1e }), { ombre: false });
+  ajouterMesh(conteneurs, new THREE.MeshStandardMaterial({
+    map: texConteneur, vertexColors: true, metalness: 0.35, roughness: 1,
+    normalMap: normalesDepuis(texConteneur, { force: 3, taille: 256 }),
+    roughnessMap: rugositeDepuis(texConteneur, { base: 0.6, variation: 0.25 }),
+  }), { couleurs: true });
+  ajouterMesh(neon, declarerLumineux(new THREE.MeshBasicMaterial({ color: 0xff7a1e }), 3), { ombre: false });
   const matFeux = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
   ajouterMesh(feux, matFeux, { ombre: false });
   ajouterMesh(bannieres, new THREE.MeshStandardMaterial({ map: textureBanniere(), roughness: 0.85, side: THREE.DoubleSide }), { ombre: false });

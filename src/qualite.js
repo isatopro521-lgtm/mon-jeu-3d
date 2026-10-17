@@ -20,17 +20,20 @@ const CLE_AUTO = 'nexus-qualite-auto';
 const REGLAGES = {
   haute: {
     pixelRatio: (tactile) => Math.min(devicePixelRatio, tactile ? 1.5 : 2),
-    ombres: true, tailleOmbres: (tactile) => (tactile ? 1024 : 2048), ombresDouces: true,
+    ombres: true, tailleOmbres: (tactile) => (tactile ? 1024 : 2048), rayonOmbres: 3,
+    post: true, // halo lumineux, vignette, anticrénelage MSAA (postprocess.js)
     herbe: 1, foret: 1, buissons: 1, rochers: 1, detailsEau: true, pluie: 1,
   },
   moyenne: {
     pixelRatio: () => Math.min(devicePixelRatio, 1),
-    ombres: true, tailleOmbres: () => 1024, ombresDouces: false,
+    ombres: true, tailleOmbres: () => 1024, rayonOmbres: 1.5,
+    post: false,
     herbe: 0.55, foret: 0.65, buissons: 0.6, rochers: 0.6, detailsEau: true, pluie: 0.6,
   },
   basse: {
     pixelRatio: () => Math.min(devicePixelRatio, 0.75),
-    ombres: false, tailleOmbres: () => 512, ombresDouces: false,
+    ombres: false, tailleOmbres: () => 512, rayonOmbres: 1,
+    post: false,
     herbe: 0.25, foret: 0.35, buissons: 0.35, rochers: 0, detailsEau: false, pluie: 0.3,
   },
 };
@@ -43,7 +46,8 @@ function ecrire(cle, valeur) {
 }
 
 export class Qualite {
-  constructor({ renderer, scene, monde, tempete, estTactile, onChange }) {
+  constructor({ renderer, scene, monde, tempete, estTactile, post, onChange }) {
+    this.post = post;
     this.renderer = renderer;
     this.scene = scene;
     this.monde = monde;
@@ -103,7 +107,8 @@ export class Qualite {
 
     // Ombres : changer de type ou les couper oblige à recompiler les matériaux
     const soleil = this.monde.ciel.soleil;
-    const type = r.ombresDouces ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    // Ombres douces : filtrage PCF élargi (rayon) — plus doux que PCFSoft, pour le même coût
+    const type = THREE.PCFShadowMap;
     const taille = r.tailleOmbres(this.tactile);
     if (R.shadowMap.enabled !== r.ombres || R.shadowMap.type !== type) {
       R.shadowMap.enabled = r.ombres;
@@ -114,6 +119,7 @@ export class Qualite {
       });
     }
     soleil.castShadow = r.ombres;
+    soleil.shadow.radius = r.rayonOmbres;
     if (soleil.shadow.mapSize.x !== taille) {
       soleil.shadow.mapSize.set(taille, taille);
       soleil.shadow.map?.dispose();
@@ -129,6 +135,7 @@ export class Qualite {
     }
     for (const m of this.monde.decor.eau) m.visible = r.detailsEau;
     this.tempete.densitePluie(r.pluie);
+    this.post?.activer(r.post);
     this.onChange?.(this);
   }
 

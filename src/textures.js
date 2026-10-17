@@ -366,3 +366,161 @@ export function textureVortex() {
     g.fillRect(0, 0, t, t);
   }, { repeter: false });
 }
+
+// ---------- Cartes PBR générées (relief et rugosité) ----------
+// Calculées une seule fois au chargement à partir des dessins ci-dessus (ou d'un bruit), puis
+// réutilisées par toutes les matières : aucun fichier image à télécharger.
+
+/** Luminance (0..1) d'une image de canvas, réduite à `taille` pixels de côté au plus. */
+function luminance(source, taille) {
+  const l = Math.min(taille, source.width), h = Math.max(1, Math.round(source.height * l / source.width));
+  const c = document.createElement('canvas');
+  c.width = l; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(source, 0, 0, l, h);
+  const d = g.getImageData(0, 0, l, h).data;
+  const lum = new Float32Array(l * h);
+  for (let i = 0; i < lum.length; i++) lum[i] = (d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114) / 255;
+  return { lum, l, h };
+}
+
+/** Texture de données (non sRGB) répétable, avec mipmaps. */
+function textureDonnees(d, l, h, modele) {
+  const t = new THREE.DataTexture(d, l, h);
+  t.wrapS = modele?.wrapS ?? THREE.RepeatWrapping;
+  t.wrapT = modele?.wrapT ?? THREE.RepeatWrapping;
+  if (modele) t.repeat.copy(modele.repeat);
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+
+/**
+ * Carte de normales tirée d'une texture couleur (les zones claires « sortent ») : rivets, joints,
+ * tôle ondulée, grain du béton… `force` règle la hauteur du relief.
+ */
+const cacheCartes = new Map();
+export function normalesDepuis(texture, { force = 2, taille = 512, inverser = false } = {}) {
+  const cle = `n${texture.uuid}/${force}/${taille}/${inverser}`;
+  if (cacheCartes.has(cle)) return cacheCartes.get(cle);
+  const { lum, l, h } = luminance(texture.image, taille);
+  const d = new Uint8Array(l * h * 4);
+  const s = inverser ? -force : force;
+  const enrouler = texture.wrapS === THREE.RepeatWrapping;
+  const px = (x, y) => {
+    if (enrouler) { x = (x + l) % l; y = (y + h) % h; } else { x = Math.min(l - 1, Math.max(0, x)); y = Math.min(h - 1, Math.max(0, y)); }
+    return lum[y * l + x];
+  };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < l; x++) {
+      // filtre de Sobel
+      const gx = (px(x + 1, y - 1) + 2 * px(x + 1, y) + px(x + 1, y + 1)) - (px(x - 1, y - 1) + 2 * px(x - 1, y) + px(x - 1, y + 1));
+      const gy = (px(x - 1, y + 1) + 2 * px(x, y + 1) + px(x + 1, y + 1)) - (px(x - 1, y - 1) + 2 * px(x, y - 1) + px(x + 1, y - 1));
+      let nx = -gx * s, ny = gy * s; // y de l'image vers le bas, v des UV vers le haut
+      const n = 1 / Math.hypot(nx, ny, 1);
+      const i = (y * l + x) * 4;
+      d[i] = (nx * n * 0.5 + 0.5) * 255;
+      d[i + 1] = (ny * n * 0.5 + 0.5) * 255;
+      d[i + 2] = (n * 0.5 + 0.5) * 255;
+      d[i + 3] = 255;
+    }
+  }
+  // l'image du canvas est retournée (flipY) : on fait pareil
+  const t = textureDonnees(d, l, h, texture);
+  t.flipY = texture.flipY;
+  cacheCartes.set(cle, t);
+  return t;
+}
+
+/**
+ * Carte de rugosité tirée d'une texture couleur : `base` ± `variation` selon la luminance
+ * (les salissures sombres sont plus mates). Canal vert, comme le veut Three.js.
+ */
+export function rugositeDepuis(texture, { base = 0.6, variation = 0.3, taille = 256, inverser = false } = {}) {
+  const cle = `r${texture.uuid}/${base}/${variation}/${taille}/${inverser}`;
+  if (cacheCartes.has(cle)) return cacheCartes.get(cle);
+  const { lum, l, h } = luminance(texture.image, taille);
+  const d = new Uint8Array(l * h * 4);
+  for (let i = 0; i < lum.length; i++) {
+    const k = inverser ? lum[i] - 0.5 : 0.5 - lum[i];
+    const r = Math.min(1, Math.max(0.04, base + k * variation * 2));
+    d.set([255, r * 255, 0, 255], i * 4);
+  }
+  const t = textureDonnees(d, l, h, texture);
+  t.flipY = texture.flipY;
+  cacheCartes.set(cle, t);
+  return t;
+}
+
+/** Peinture métallique usée (gris neutre, teinté par la couleur des sommets) : rayures, éclats, coulures. */
+let metalUse = null;
+export function textureMetalUse() {
+  return (metalUse ??= textureCanvas(256, 256, (g, t) => {
+    const r = aleatoire(41);
+    const img = g.createImageData(t, t);
+    for (let y = 0; y < t; y++) {
+      for (let x = 0; x < t; x++) {
+        const n = fbmPeriodique(x / t, y / t, 6);
+        const v = 200 + n * 50 + (r() - 0.5) * 14;
+        const i = (y * t + x) * 4;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    for (let i = 0; i < 260; i++) { // rayures fines et claires
+      const x = r() * t, y = r() * t, l = 4 + r() * 22, a = r() * Math.PI;
+      g.strokeStyle = `rgba(255,255,255,${0.15 + r() * 0.25})`;
+      g.lineWidth = 0.6 + r() * 0.8;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    for (let i = 0; i < 60; i++) { // éclats de peinture sombres
+      g.fillStyle = `rgba(60,55,50,${0.2 + r() * 0.35})`;
+      g.beginPath(); g.ellipse(r() * t, r() * t, 1 + r() * 4, 1 + r() * 3, r() * 3, 0, Math.PI * 2); g.fill();
+    }
+    for (let i = 0; i < 18; i++) { // coulures de rouille
+      g.fillStyle = `rgba(110,70,40,${0.06 + r() * 0.1})`;
+      g.fillRect(r() * t, r() * t, 1 + r() * 3, 20 + r() * 60);
+    }
+  }));
+}
+
+/** Toile de jute des sacs de sable (trame serrée + fibres). */
+export function textureToile() {
+  return textureCanvas(128, 128, (g, t) => {
+    const r = aleatoire(57);
+    g.fillStyle = '#c8c0aa'; g.fillRect(0, 0, t, t);
+    for (let i = 0; i < t; i += 4) {
+      g.fillStyle = 'rgba(70,60,40,0.28)';
+      g.fillRect(i, 0, 1.5, t); g.fillRect(0, i + 2, t, 1.5);
+    }
+    for (let i = 0; i < 400; i++) {
+      const v = 150 + r() * 90;
+      g.fillStyle = `rgba(${v},${v * 0.95},${v * 0.8},0.35)`;
+      g.fillRect(r() * t, r() * t, 1 + r() * 3, 1);
+    }
+  });
+}
+
+/**
+ * UV « boîte » en coordonnées du monde : chaque face prend la projection sur son plan dominant.
+ * Indispensable après fusion d'éléments de tailles très différentes (la texture garde la même
+ * échelle partout : `metre` = taille d'une répétition, en mètres).
+ */
+export function uvMonde(geo, metre = 2) {
+  const p = geo.attributes.position, n = geo.attributes.normal;
+  const uv = geo.attributes.uv ?? new THREE.BufferAttribute(new Float32Array(p.count * 2), 2);
+  for (let i = 0; i < p.count; i++) {
+    const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
+    let u, v;
+    if (ay >= ax && ay >= az) { u = p.getX(i); v = p.getZ(i); }
+    else if (ax >= az) { u = p.getZ(i); v = p.getY(i); }
+    else { u = p.getX(i); v = p.getY(i); }
+    uv.setXY(i, u / metre, v / metre);
+  }
+  geo.setAttribute('uv', uv);
+  uv.needsUpdate = true;
+  return geo;
+}

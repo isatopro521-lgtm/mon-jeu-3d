@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Crédits — NEXUS FRONTIER</title>
+  <meta name="description" content="Crédits et licences des modèles 3D du jeu NEXUS FRONTIER.">
+  <meta name="theme-color" content="#14171b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon-180.png">
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; color: #e9edf1; line-height: 1.55;
+      font-family: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 50% 0%, rgba(255, 122, 30, 0.14), transparent 55%), #14171b;
+      padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right))
+               max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    }
+    main {
+      max-width: 720px; margin: 0 auto; padding: 24px 30px 30px;
+      background: linear-gradient(180deg, rgba(31, 36, 42, 0.92), rgba(16, 19, 23, 0.94));
+      border: 1px solid rgba(190, 205, 220, 0.22); border-top: 3px solid #ff7a1e;
+    }
+    header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    header img { width: 56px; height: 56px; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: 4px; text-transform: uppercase; }
+    h1 span { display: block; font-size: 14px; letter-spacing: 6px; color: #ff7a1e; }
+    h2 { font-size: 17px; letter-spacing: 2px; text-transform: uppercase; color: #ffa25a; margin: 24px 0 6px; }
+    p, li { color: #c9d1d9; }
+    strong { color: #e9edf1; }
+    a { color: #ffa25a; }
+    .retour {
+      display: inline-block; margin-top: 26px; padding: 10px 26px; color: #fff; text-decoration: none;
+      font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+      background: linear-gradient(180deg, #ff8a32, #e2620e);
+      clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+    }
+    .maj { font-size: 13px; color: #a9b3bd; }
+    ul.credits { padding-left: 18px; }
+    ul.credits li { margin-bottom: 10px; }
+    .licence { color: #ffa25a; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <img src="icons/icon-192.png" alt="">
+      <h1>Crédits<span>NEXUS FRONTIER</span></h1>
+    </header>
+    <p class="maj">Modèles 3D libres utilisés dans le jeu</p>
+
+    <h2>Modèles 3D</h2>
+    <ul class="credits">
+      <li><strong>Soldats ennemis (corps, tenue, casque)</strong> : « FREE [Military Soldier] RIGGED » par BAMEN — <a class="licence" href="https://creativecommons.org/licenses/by/4.0/deed.fr">CC BY 4.0</a> — <a href="https://sketchfab.com/3d-models/free-military-soldier-rigged-e9c56308a67d4a3db62e914fafa4d198">source</a></li>
+      <li><strong>Animations des soldats</strong> : « Universal Animation Library » par Quaternius, adaptées au soldat par Operation Steel Tide (AetherRadar, licence MIT) — <a class="licence" href="https://creativecommons.org/publicdomain/zero/1.0/deed.fr">CC0</a> — <a href="https://quaternius.itch.io/universal-animation-library">source</a></li>
+      <li><strong>Bras et gants à la première personne</strong> : « fps animated smg » par DJMaesen (pose adaptée par Operation Steel Tide) — <a class="licence" href="https://creativecommons.org/licenses/by/4.0/deed.fr">CC BY 4.0</a> — <a href="https://sketchfab.com/3d-models/fps-animated-smg-ea3dad7478624495a5a46f40127b0579">source</a></li>
+      <li><strong>Fusil d'assaut</strong> : « M4A1 Assault Rifle » par nisu, avec des pièces de l'« Ultimate Guns Pack » de Quaternius — <a class="licence" href="https://creativecommons.org/publicdomain/zero/1.0/deed.fr">CC0</a> — <a href="https://opengameart.org/content/m4a1-assault-rifle">source</a></li>
+      <li><strong>Fusil à pompe</strong> : « Mossberg 590A1 » par J-Toastie — <a class="licence" href="https://creativecommons.org/licenses/by/3.0/deed.fr">CC BY 3.0</a> — <a href="https://poly.pizza/m/eAh1oHY32T">source</a></li>
+      <li><strong>Armes des ennemis</strong> : « Ultimate Guns Pack » par Quaternius — <a class="licence" href="https://creativecommons.org/publicdomain/zero/1.0/deed.fr">CC0</a> — <a href="https://poly.pizza/bundle/Ultimate-Guns-Pack-cpgUfI4t2F">source</a></li>
+    </ul>
+    <p>Modifications : couleurs des tenues par faction, matières regroupées, animations triées et compressées,
+      textures réduites pour le web, fusil à pompe recoloré. Détails et liens complets dans
+      <a href="CREDITS.md">CREDITS.md</a>.</p>
+
+    <h2>Bibliothèque</h2>
+    <p><a href="https://threejs.org">Three.js</a> (licence MIT).</p>
+
+    <h2>Le reste</h2>
+    <p>Code, décor, textures procédurales et sons générés : créés pour NEXUS FRONTIER.</p>
+
+    <a class="retour" href="./">Retour au jeu</a>
+  </main>
+</body>
+</html>

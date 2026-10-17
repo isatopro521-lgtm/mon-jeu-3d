@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { sons } from './audio.js';
 import { Assemblage } from './utils.js';
+import { cloner } from './modeles.js';
+import { declarerLumineux } from './postprocess.js';
 
 export const ARMES = [
   {
@@ -24,11 +26,35 @@ const _haut = new THREE.Vector3();
 const _bouche = new THREE.Vector3();
 const _fin = new THREE.Vector3();
 
+/** Texture de flamme de bouche : étoile à branches irrégulières, cœur blanc, bords orangés. */
+const texFlamme = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const d = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  d.addColorStop(0, 'rgba(255,255,240,1)');
+  d.addColorStop(0.18, 'rgba(255,230,150,0.95)');
+  d.addColorStop(0.45, 'rgba(255,150,40,0.55)');
+  d.addColorStop(1, 'rgba(255,90,0,0)');
+  g.fillStyle = d;
+  g.beginPath();
+  const n = 9;
+  for (let i = 0; i <= n * 2; i++) {
+    const a = i / (n * 2) * Math.PI * 2;
+    const r = i % 2 ? 14 + Math.random() * 8 : 40 + Math.random() * 24;
+    g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r);
+  }
+  g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+
 function flammeBouche() {
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xffc35a, transparent: true, opacity: 0.9,
-    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-  });
+  const mat = declarerLumineux(new THREE.MeshBasicMaterial({
+    map: texFlamme, color: 0xffffff, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false,
+  }), 3);
   const g = new THREE.Group();
   const plan = new THREE.PlaneGeometry(0.16, 0.16);
   for (let i = 0; i < 3; i++) {
@@ -193,6 +219,164 @@ function modelePompe() {
   return { groupe: g, bouche, pompe };
 }
 
+// ---------- Modèles réalistes (glTF, voir CREDITS.md) ----------
+// Bras gantés (pose « fusil ») + vraie arme placée pour que la poignée et le garde-main tombent
+// dans les mains. Repère des bras : mètres, caméra regardant vers -z.
+const PRISE_DROITE = new THREE.Vector3(0, 0.096, -0.132); // poignée tenue par la main droite (fichier bras)
+// Où placer cette poignée par rapport à la caméra (m) ; un peu plus centré en portrait
+const POSE_CAMERA = new THREE.Vector3(0.17, -0.265, -0.4);
+const ECHELLE_RIG = 0.78; // bras et arme un peu réduits : moins envahissants à l'écran
+const LACET = 0.1; // l'arme pointe légèrement vers le centre de l'écran
+const TANGAGE = 0.07; // bouche légèrement relevée vers le réticule
+
+const matDouilles = {
+  laiton: new THREE.MeshStandardMaterial({ color: 0xc9a253, metalness: 1, roughness: 0.32 }),
+  cartouche: new THREE.MeshStandardMaterial({ color: 0x9c1e1a, roughness: 0.55, metalness: 0.1 }),
+};
+
+/** Repère commun : les bras, placés pour que la poignée tombe sur POSE_CAMERA. */
+function rigBras() {
+  const bras = cloner('bras');
+  if (!bras) return null;
+  const rig = new THREE.Group();
+  rig.add(bras);
+  return { rig, bras, gauche: bras.getObjectByName('LeftArm'), droite: bras.getObjectByName('RightArm') };
+}
+
+/** Place le repère dans le support de l'arme (qui a sa propre position/échelle). */
+function placerRig(rig, support, portrait) {
+  const cible = portrait ? _cible.set(0.07, -0.25, -0.4) : _cible.copy(POSE_CAMERA);
+  const echelle = ECHELLE_RIG * (portrait ? 0.62 : 1); // en portrait le champ de vision est plus large
+  const s = 1 / support.scale.x;
+  rig.scale.setScalar(s * echelle);
+  rig.rotation.set(TANGAGE, LACET, 0, 'YXZ');
+  // position de la poignée dans le repère tourné, puis décalage vers la cible
+  _a.copy(PRISE_DROITE).applyEuler(rig.rotation).multiplyScalar(echelle);
+  rig.position.copy(cible).sub(_a).sub(support.position).multiplyScalar(s);
+}
+const _cible = new THREE.Vector3();
+
+function nuances(objet) {
+  objet.traverse((o) => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false;
+    o.raycast = () => {};
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.envMapIntensity = 0.9;
+  });
+}
+
+function modeleFusilReel() {
+  const r = rigBras();
+  const arme = cloner('fusil');
+  if (!r || !arme) return null;
+  // M4A1 : poignée (0, -0.2, 0.245) → main droite, garde-main (0, -0.17, -0.58) → main gauche
+  arme.scale.setScalar(0.528);
+  arme.position.set(0, 0.202, -0.261);
+  arme.rotation.x = -0.05;
+  const crosse = arme.getObjectByName('Stock');
+  if (crosse) crosse.position.z -= 0.1; // crosse rentrée d'un cran : moins envahissante à l'écran
+  r.rig.add(arme);
+  nuances(r.rig);
+  const groupe = new THREE.Group();
+  groupe.add(r.rig);
+  const bouche = new THREE.Object3D();
+  (arme.getObjectByName('MuzzleDeviceTip') ?? arme).add(bouche);
+  const ejection = new THREE.Object3D();
+  ejection.position.set(0.06, 0.06, -0.1);
+  arme.add(ejection);
+  const chargeur = arme.getObjectByName('Magazine');
+  return {
+    groupe, bouche, ejection, rig: r.rig, reel: true, douille: 'laiton', echelleFlamme: 1.6,
+    gauche: r.gauche, baseGauche: r.gauche.position.clone(),
+    chargeur, baseChargeur: chargeur?.position.clone(),
+    /** Rechargement : le chargeur tombe, la main gauche en amène un neuf et l'enfonce. */
+    animer(p) {
+      const g = this.gauche.position.copy(this.baseGauche);
+      if (!this.chargeur) return;
+      const c = this.chargeur.position.copy(this.baseChargeur);
+      if (p < 0.12) return;
+      if (p < 0.35) { // le vieux chargeur glisse et tombe, la main descend
+        const q = (p - 0.12) / 0.23;
+        c.y -= q * q * 0.9;
+        g.y -= Math.sin(q * Math.PI * 0.5) * 0.17; g.z += q * 0.22; g.x -= q * 0.04;
+        this.chargeur.visible = q < 0.85;
+      } else if (p < 0.7) { // un chargeur neuf monte avec la main
+        const q = (p - 0.35) / 0.35;
+        this.chargeur.visible = true;
+        c.y -= (1 - q) * 0.55;
+        g.y -= (1 - q) * 0.17; g.z += 0.22 - q * 0.05; g.x -= 0.04 * (1 - q);
+      } else { // la main revient sur le garde-main
+        const q = (p - 0.7) / 0.3;
+        g.z += 0.17 * (1 - q);
+        g.y += Math.sin(q * Math.PI) * 0.02;
+      }
+    },
+    finAnim() { this.gauche.position.copy(this.baseGauche); if (this.chargeur) { this.chargeur.position.copy(this.baseChargeur); this.chargeur.visible = true; } },
+  };
+}
+
+function modelePompeReel() {
+  const r = rigBras();
+  const arme = cloner('pompe');
+  if (!r || !arme) return null;
+  // Mossberg 590A1 orienté le long de +x : quart de tour, poignée → main droite, pompe → main gauche
+  arme.scale.setScalar(0.19);
+  arme.rotation.y = Math.PI / 2;
+  arme.position.set(0, -0.06, -0.262); // posé un peu au-dessus des poings : visible depuis l'épaule
+  // polymère noir mat (le modèle d'origine est gris clair et trop brillant)
+  arme.traverse((o) => {
+    if (!o.isMesh) return;
+    const sombre = o.material.name === 'shotgun_shade2';
+    o.material.color.setHex(sombre ? 0x0d0e0f : 0x1e2022);
+    o.material.metalness = sombre ? 0.2 : 0.55;
+    o.material.roughness = sombre ? 0.75 : 0.42;
+  });
+  r.rig.add(arme);
+  nuances(r.rig);
+  const groupe = new THREE.Group();
+  groupe.add(r.rig);
+  const bouche = new THREE.Object3D();
+  bouche.position.set(3.0, 1.0, 0);
+  arme.add(bouche);
+  const ejection = new THREE.Object3D();
+  ejection.position.set(0.1, 0.95, 0.14);
+  arme.add(ejection);
+  // Os de la pompe : on le fait glisser le long du canon (direction calculée dans son repère)
+  const os = arme.getObjectByName('FR');
+  const m = {
+    groupe, bouche, ejection, rig: r.rig, reel: true, douille: 'cartouche', echelleFlamme: 7,
+    gauche: r.gauche, baseGauche: r.gauche.position.clone(), os,
+    basePompe: os?.position.clone(), axePompe: new THREE.Vector3(),
+    /** Recul de la pompe (0 → 1) : la main gauche suit. */
+    pomper(k) {
+      this.gauche.position.copy(this.baseGauche);
+      this.gauche.position.z += k * 0.09;
+      if (this.os) this.os.position.copy(this.basePompe).addScaledVector(this.axePompe, k * 0.09);
+    },
+    /** Rechargement : la main gauche glisse des cartouches sous l'arme, trois fois. */
+    animer(p) {
+      const g = this.gauche.position.copy(this.baseGauche);
+      if (p < 0.1 || p > 0.9) return;
+      const q = (p - 0.1) / 0.8;
+      const cycle = (q * 3) % 1;
+      const descente = Math.sin(Math.min(1, q * 6) * Math.PI * 0.5) * Math.sin(Math.min(1, (1 - q) * 6) * Math.PI * 0.5);
+      g.y -= descente * 0.12 - Math.sin(cycle * Math.PI) * 0.05 * descente;
+      g.z += descente * (0.2 + Math.sin(cycle * Math.PI) * 0.06);
+    },
+    finAnim() { this.pomper(0); },
+  };
+  if (os) {
+    // direction « vers la crosse » (+z du repère des bras) exprimée dans le repère du parent de l'os
+    r.rig.updateMatrixWorld(true);
+    os.parent.getWorldQuaternion(_quat).invert();
+    os.parent.getWorldScale(_b);
+    _a.set(0, 0, 1).applyQuaternion(_quat);
+    m.axePompe.copy(_a).divide(_b);
+    // l'échelle du rig (1) est celle du monde à ce stade : la distance reste en mètres
+  }
+  return m;
+}
+
 function trouverEnnemi(objet) {
   for (let o = objet; o; o = o.parent) {
     if (o.userData.ennemi) return o.userData.ennemi;
@@ -230,6 +414,18 @@ export class Armes {
       m.bouche.add(m.flamme);
     }
 
+    // Douilles éjectées (pool, dans la scène)
+    this.douilles = [];
+    const geoDouille = new THREE.CylinderGeometry(0.0055, 0.0055, 0.024, 8).rotateZ(Math.PI / 2);
+    const geoCartouche = new THREE.CylinderGeometry(0.0095, 0.0095, 0.06, 8).rotateZ(Math.PI / 2);
+    for (let i = 0; i < 24; i++) {
+      const d = new THREE.Mesh(i % 2 ? geoCartouche : geoDouille, i % 2 ? matDouilles.cartouche : matDouilles.laiton);
+      d.visible = false;
+      d.frustumCulled = false;
+      (camera.parent ?? camera).add(d);
+      this.douilles.push({ mesh: d, vel: new THREE.Vector3(), rot: new THREE.Vector3(), vie: 0, cartouche: i % 2 === 1 });
+    }
+
     this.lumiere = new THREE.PointLight(0xffb45a, 0, 9, 2);
     this.lumiere.position.set(0.2, -0.1, -0.9);
     camera.add(this.lumiere);
@@ -257,9 +453,69 @@ export class Armes {
   /** En portrait (écran étroit), l'arme est plus petite et plus centrée pour ne pas masquer la vue. */
   adapterEcran(aspect) {
     const portrait = aspect < 1;
+    this.portrait = portrait;
     this.support.position.copy(POSITION_BASE);
     if (portrait) this.support.position.set(0.11, -0.2, -0.36);
     this.support.scale.setScalar(portrait ? ECHELLE * 0.72 : ECHELLE);
+    for (const m of this.modeles) if (m.rig) placerRig(m.rig, this.support, portrait);
+  }
+
+  /** Remplace les armes simplifiées par les modèles réalistes (s'ils ont pu être chargés). */
+  utiliserModeles() {
+    const fabriques = [modeleFusilReel, modelePompeReel];
+    this.modeles = this.modeles.map((ancien, i) => {
+      let m = null;
+      try { m = fabriques[i](); } catch (e) { console.warn('Arme réaliste indisponible', e); }
+      if (!m) return ancien;
+      this.support.remove(ancien.groupe);
+      this.support.add(m.groupe);
+      m.flamme = ancien.flamme;
+      m.bouche.add(m.flamme);
+      m.flamme.scale.setScalar(1);
+      m.groupe.visible = ancien.groupe.visible;
+      placerRig(m.rig, this.support, this.portrait);
+      return m;
+    });
+  }
+
+  /** Douille éjectée sur la droite de l'arme (laiton pour le fusil, cartouche rouge pour le pompe). */
+  ejecterDouille(m) {
+    if (!m.ejection) return;
+    const cartouche = m.douille === 'cartouche';
+    const d = this.douilles.find((q) => q.vie <= 0 && q.cartouche === cartouche);
+    if (!d) return;
+    m.ejection.getWorldPosition(d.mesh.position);
+    _droite.setFromMatrixColumn(this.camera.matrixWorld, 0);
+    _haut.setFromMatrixColumn(this.camera.matrixWorld, 1);
+    this.camera.getWorldDirection(_dir);
+    d.vel.copy(_droite).multiplyScalar(1.6 + Math.random() * 0.8)
+      .addScaledVector(_haut, 1.4 + Math.random() * 0.6)
+      .addScaledVector(_dir, -0.4 + Math.random() * 0.3);
+    if (this.joueur) d.vel.add(this.joueur.vitesse);
+    d.rot.set(Math.random() * 20 - 10, Math.random() * 20 - 10, Math.random() * 20 - 10);
+    d.mesh.quaternion.copy(this.camera.quaternion);
+    d.vie = 1.4;
+    d.rebond = false;
+    d.mesh.visible = true;
+  }
+
+  majDouilles(dt) {
+    for (const d of this.douilles) {
+      if (d.vie <= 0) continue;
+      d.vie -= dt;
+      const p = d.mesh.position;
+      d.vel.y -= 9.8 * dt;
+      p.addScaledVector(d.vel, dt);
+      d.mesh.rotation.x += d.rot.x * dt;
+      d.mesh.rotation.y += d.rot.y * dt;
+      d.mesh.rotation.z += d.rot.z * dt;
+      if (p.y < 0.01) { // rebond sur le sol, puis immobile
+        p.y = 0.01;
+        if (!d.rebond) { d.rebond = true; d.vel.multiplyScalar(0.3); d.vel.y = Math.abs(d.vel.y) * 0.4 + 0.4; d.rot.multiplyScalar(0.4); }
+        else { d.vel.set(0, 0, 0); d.rot.set(0, 0, 0); }
+      }
+      if (d.vie <= 0) d.mesh.visible = false;
+    }
   }
 
   reinitialiser() {
@@ -272,7 +528,8 @@ export class Armes {
     this.gachette = false;
     this.recul = 0;
     this.flash = 0;
-    this.modeles.forEach((m, i) => { m.groupe.visible = i === 0; });
+    this.modeles.forEach((m, i) => { m.groupe.visible = i === 0; m.finAnim?.(); });
+    for (const d of this.douilles) { d.vie = 0; d.mesh.visible = false; }
   }
 
   get arme() { return ARMES[this.indice]; }
@@ -304,7 +561,7 @@ export class Armes {
     this.recharge = 0;
     this.changement = 0.3;
     this.attente = Math.max(this.attente, 0.3);
-    this.modeles.forEach((m, k) => { m.groupe.visible = k === i; });
+    this.modeles.forEach((m, k) => { m.groupe.visible = k === i; m.finAnim?.(); });
   }
 
   recharger() {
@@ -362,12 +619,17 @@ export class Armes {
       this.effets.trainee(_bouche, _fin);
     }
 
+    // Douille : tout de suite pour le fusil, au retour de pompe pour le fusil à pompe
+    if (modele.douille === 'laiton') this.ejecterDouille(modele);
+    else if (modele.douille) this.douilleEnAttente = 0.32;
+
     // Petit recul de la caméra vers le haut
     this.camera.rotateX(a.secousse);
     this.onBruit(_origine);
   }
 
   update(dt, joueur) {
+    this.joueur = joueur;
     this.attente -= dt;
     if (this.recharge > 0) {
       this.recharge -= dt;
@@ -376,6 +638,7 @@ export class Armes {
         const pris = Math.min(this.arme.chargeur - this.chargeur, this.reserve);
         this.munitions[this.indice] += pris;
         this.reserves[this.indice] -= pris;
+        this.modeles[this.indice].finAnim?.();
       }
     }
     if (this.gachette && this.arme.auto) this.essayerTir();
@@ -396,9 +659,16 @@ export class Armes {
     if (this.recharge > 0) {
       const p = 1 - this.recharge / this.arme.rechargement;
       const creux = Math.sin(p * Math.PI);
-      m.groupe.rotation.x -= creux * 0.7;
-      m.groupe.rotation.z = creux * 0.4;
-      m.groupe.position.y -= creux * 0.12;
+      if (m.reel) { // arme inclinée sur le côté pour montrer le puits de chargeur
+        m.groupe.rotation.x += creux * 0.12;
+        m.groupe.rotation.z = creux * 0.55;
+        m.groupe.rotation.y += creux * 0.15;
+        m.groupe.position.y -= creux * 0.02;
+      } else {
+        m.groupe.rotation.x -= creux * 0.7;
+        m.groupe.rotation.z = creux * 0.4;
+        m.groupe.position.y -= creux * 0.12;
+      }
     }
     if (this.changement > 0) {
       this.changement -= dt;
@@ -408,13 +678,23 @@ export class Armes {
       const c = Math.max(0, this.attente) / this.arme.cadence;
       m.pompe.position.z = -0.3 + Math.sin(c * Math.PI) * 0.08;
     }
+    if (m.reel) {
+      if (this.recharge > 0) m.animer(1 - this.recharge / this.arme.rechargement);
+      else if (m.pomper) { // pompe réaliste : aller-retour juste après le tir
+        const c = 1 - Math.max(0, this.attente) / this.arme.cadence;
+        m.pomper(c > 0.25 && c < 0.75 ? Math.sin((c - 0.25) / 0.5 * Math.PI) : 0);
+      }
+    }
+    if (this.douilleEnAttente > 0 && (this.douilleEnAttente -= dt) <= 0) this.ejecterDouille(m);
+    this.majDouilles(dt);
 
     this.flash -= dt;
     const allume = this.flash > 0;
     m.flamme.visible = allume;
     if (allume) {
       m.flamme.rotation.z = Math.random() * Math.PI;
-      m.flamme.scale.setScalar(0.8 + Math.random() * (this.indice === 1 ? 1.2 : 0.6));
+      const base = m.echelleFlamme ?? 1; // la flamme est à l'échelle du repère de l'arme
+      m.flamme.scale.setScalar(base * (0.8 + Math.random() * (this.indice === 1 ? 1.2 : 0.6)));
     }
     this.lumiere.intensity = allume ? 6 : 0;
   }
