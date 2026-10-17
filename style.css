@@ -503,6 +503,15 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--orange-2); 
 .defi .defi-score { color: #fff; white-space: nowrap; }
 .ligne-partage { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
 .btn-partager { font-size: 14px; letter-spacing: 2px; padding: 9px 22px; min-height: 44px; }
+/* Lien vers le court-métrage (film.html), même allure qu'un bouton secondaire */
+.btn-film {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 9px 22px;
+  font-size: 14px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; text-decoration: none;
+  color: var(--texte); background: rgba(20, 23, 28, 0.6);
+  box-shadow: 0 0 0 1px rgba(255, 122, 30, 0.6) inset;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+.btn-film:hover, .btn-film:focus-visible { background: rgba(255, 122, 30, 0.18); }
 .boutons-fin { justify-content: center; align-items: center; }
 .boutons-fin .btn-partager { font-size: 17px; padding: 10px 28px; }
 .partage-etat { margin: 0; font-size: 13px; color: var(--orange-2); max-width: 440px; overflow-wrap: anywhere;

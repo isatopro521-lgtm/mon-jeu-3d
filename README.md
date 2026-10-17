@@ -52,6 +52,32 @@ Si un modèle ne peut pas être chargé, le jeu garde automatiquement ses modèl
 - **App installable (PWA)** : le jeu s'installe sur l'écran d'accueil (iPhone, Android, PC), s'ouvre en plein écran
   et fonctionne **hors ligne** (service worker).
   En Auto, le jeu baisse tout seul la qualité s'il passe sous 40 images/s (choix mémorisé).
+- **🎬 Le film** : un court-métrage 3D de 2 minutes dans l'univers du jeu, à regarder sur
+  https://isatopro521-lgtm.github.io/mon-jeu-3d/film.html (bouton « 🎬 Film » du menu). Voir plus bas.
+
+### Le film « NEXUS FRONTIER »
+
+Court-métrage d'environ 2 minutes, **calculé en direct** dans le navigateur avec le moteur du jeu
+(mêmes décors, mêmes soldats animés, même mech-araignée, même Tempête Nexus) ; la musique et les sons
+sont synthétisés en direct (Web Audio). Aucun fichier vidéo à télécharger.
+
+*Synopsis* : l'avant-poste Nexus ne répond plus depuis trois jours. L'éclaireuse Kaï Varga part seule
+au pied de la Mégastructure… mais le silence cache une embuscade, et la Tempête Nexus approche.
+
+5 scènes (l'arrivée, l'embuscade, le combat en vue subjective, la tempête et le mech-araignée, l'épilogue),
+bandes noires façon cinéma, fondus, titres et sous-titres en français, ralenti sur l'explosion, générique.
+
+| Commande | PC | Téléphone / tablette |
+| --- | --- | --- |
+| Lancer | bouton **▶ Lancer le film** (ou `Espace`) | bouton **▶ Lancer le film** (passe en plein écran) |
+| Pause / lecture | `Espace` ou `K`, ou clic sur l'image | toucher l'image → bouton ❚❚ / ▶ |
+| Recommencer | `R` | bouton ⟲ |
+| Plein écran | `F` | bouton ⛶ |
+| Couper le son | `M` | bouton 🔊 |
+| Revenir au jeu | bouton **Retour au jeu** | bouton **Retour au jeu** |
+
+Paysage conseillé sur téléphone ; en portrait, l'image devient carrée et les sous-titres passent dans les bandes noires.
+Le réglage de qualité du jeu s'applique aussi au film (Auto baisse les détails si l'appareil rame).
 
 ### Lancer le jeu
 
@@ -255,6 +281,8 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/audio.js` | Sons générés avec la Web Audio API |
 | `src/utils.js` | Collisions, bruit procédural, fusion de géométries |
 | `src/installation.js` | Aide à l'installation de l'app (bannière iPhone, bouton « Installer le jeu ») |
+| `film.html`, `src/film.js` | Le film : scénario (événements, plans de caméra, textes, fondus), acteurs pilotés, lecture |
+| `src/film-musique.js` | Musique et ambiance du film (synthèse Web Audio, partition écrite en temps du film) |
 | `src/partage.js` | Partage du jeu, liens de défi `?defi=…&nom=…`, bandeau et résultat du défi |
 | `robots.txt`, `sitemap.xml` | Référencement par les moteurs de recherche |
 | `PUBLIER-ITCH.md` | Textes et étapes pour publier sur itch.io et faire connaître le jeu |
@@ -271,6 +299,8 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 
 Ajouter `?debug` à l'URL expose l'objet `window.jeu` pour le débogage ; `?sansmodeles` force les
 modèles simplifiés (test du mode de secours).
+Pour le film, `film.html?debug` expose `window.film` (`avancer(secondes)` pour avancer sans attendre) et
+`film.html?capture` permet d'enregistrer une vidéo image par image (`window.film.image(1/30)`).
 
 ## Agent Claude Code
 

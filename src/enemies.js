@@ -396,7 +396,8 @@ function angleCourt(a) {
   return Math.atan2(Math.sin(a), Math.cos(a));
 }
 
-class Ennemi {
+/** Un ennemi (IA + modèle animé). Exporté aussi pour le film (film.js), qui le pilote lui-même. */
+export class Ennemi {
   constructor(type, x, z, niveau, scene) {
     const t = TYPES[type];
     this.type = type;
@@ -545,18 +546,13 @@ class Ennemi {
   }
 
   update(dt, c) {
-    const g = this.groupe;
-
     if (this.mort) {
       this.animerMort(dt, c);
       return;
     }
 
     if (this.apparition > 0) {
-      this.apparition -= dt;
-      const s = 1 - Math.max(0, this.apparition) / DUREE_APPARITION;
-      g.scale.setScalar(this.echelle * Math.max(0.01, s));
-      if (this.mixer) this.majMixer(dt, 0);
+      this.grandir(dt);
       return;
     }
     this.temps += dt;
@@ -704,7 +700,23 @@ class Ennemi {
       this.angle += angleCourt(angleVoulu - this.angle) * Math.min(1, dt * 10);
     }
 
-    // Animation
+    this.poser(dt, j, dist);
+  }
+
+  /** Apparition : le modèle grandit pendant DUREE_APPARITION. */
+  grandir(dt) {
+    this.apparition -= dt;
+    const s = 1 - Math.max(0, this.apparition) / DUREE_APPARITION;
+    this.groupe.scale.setScalar(this.echelle * Math.max(0.01, s));
+    if (this.mixer) this.majMixer(dt, 0);
+  }
+
+  /**
+   * Pose du modèle à partir de l'état courant (vitesse, état de l'IA, angle) : animation,
+   * regard vers `j.position`, éclair de touche, visière, icône d'alerte. Sans aucune décision d'IA.
+   */
+  poser(dt, j, dist) {
+    const g = this.groupe;
     const v = Math.hypot(this.vel.x, this.vel.z);
     this.recul = Math.max(0, this.recul - dt);
     if (this.pattes) {

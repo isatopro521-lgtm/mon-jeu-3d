@@ -30,7 +30,7 @@ jobs:
           bash scripts/verifier-sw.sh
           mkdir _site
           cp -r index.html style.css src lib modeles _site/
-          cp -r manifest.webmanifest sw.js confidentialite.html credits.html CREDITS.md icons captures _site/
+          cp -r manifest.webmanifest sw.js confidentialite.html credits.html film.html CREDITS.md icons captures _site/
           # Référencement : robots.txt et sitemap.xml
           cp robots.txt sitemap.xml _site/
           # Version du cache hors ligne = commit publié : les joueurs reçoivent la mise à jour
