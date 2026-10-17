@@ -29,6 +29,7 @@ const FICHIERS = [
   'src/enemies.js',
   'src/film.js',
   'src/film-musique.js',
+  'src/film-voix.js',
   'src/grenades.js',
   'src/hud.js',
   'src/installation.js',
