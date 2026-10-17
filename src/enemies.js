@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { clamp, collisionCercleBoites, Assemblage, fusionner } from './utils.js';
 import { DEMI_ARENE } from './world.js';
 import { sons } from './audio.js';
+import { modeles, cloner, clip, matiereSoldat } from './modeles.js';
+import { declarerLumineux } from './postprocess.js';
+import { textureMetalUse, normalesDepuis, rugositeDepuis, uvMonde } from './textures.js';
 
 // Paramètres des types d'ennemis
 // taille : « poids » (recul encaissé) ; echelle : taille du modèle ; rayon/hauteur : collision ;
@@ -47,9 +50,16 @@ const sphere = new THREE.SphereGeometry(1, 12, 8);
 const cylindre = new THREE.CylinderGeometry(1, 1, 1, 8);
 const matVisieres = {};
 function matVisiere(couleur) {
-  return (matVisieres[couleur] ??= new THREE.MeshBasicMaterial({ color: couleur }));
+  return (matVisieres[couleur] ??= declarerLumineux(new THREE.MeshBasicMaterial({ color: couleur }), 2.5));
 }
 const matVisiereFlash = new THREE.MeshBasicMaterial({ color: 0xffffff }); // éclair d'alerte
+/** Visière du soldat réaliste : verre sombre et brillant, légèrement éclairé de la couleur du camp. */
+const matVisieresVerre = {};
+function matVisiereVerre(couleur) {
+  return (matVisieresVerre[couleur] ??= declarerLumineux(new THREE.MeshStandardMaterial({
+    color: 0x05070a, metalness: 0.9, roughness: 0.08, emissive: couleur, emissiveIntensity: 0.2,
+  }), 4));
+}
 
 // Icône « ! » d'alerte (texture dessinée une fois, matériau partagé par tous les ennemis)
 const matIcone = (() => {
@@ -182,6 +192,8 @@ const geosMech = (() => {
     b(boite, tx, ty + 0.06, 0, 0.36, 0.12, 0.34, BOTTE);         // pied
   });
   const coqueComplete = fusionner([{ geo: chassis }, { geo: tourelle }], { couleurs: true });
+  // UV « boîte » : la peinture usée garde la même échelle sur toutes les plaques
+  for (const g of [coqueComplete, cuisse, tibia]) uvMonde(g, 0.9);
   return { chassis: coqueComplete, yeux, cuisse, tibia, tete: T };
 })();
 
@@ -220,7 +232,124 @@ function construireSoldat(e, g, t) {
   torse.castShadow = true; // une seule ombre par soldat (moins d'appels de rendu)
 }
 
+// ---------- Soldat réaliste (modèle glTF animé, voir CREDITS.md) ----------
+const HAUTEUR_MODELE = 1.84;                         // taille du soldat (m, casque compris)
+const DEBUT_FONDU_MODELE = 1.9;                      // la chute animée dure plus longtemps
+const os = (nom) => 'mixamorig' + nom;               // noms des os (le « : » est retiré au chargement)
+// Zones de tir invisibles accrochées aux os : [os, largeur, longueur, profondeur, tête ?]
+// (les maillages animés eux-mêmes ne sont pas testés par les balles : plus rapide et plus juste)
+const ZONES_TIR = [
+  ['Head', 0.27, 0.3, 0.3, true],
+  ['Spine1', 0.42, 0.45, 0.3], ['Hips', 0.38, 0.28, 0.28],
+  ['LeftUpLeg', 0.19, 0.46, 0.2], ['RightUpLeg', 0.19, 0.46, 0.2],
+  ['LeftLeg', 0.15, 0.48, 0.16], ['RightLeg', 0.15, 0.48, 0.16],
+  ['LeftArm', 0.13, 0.3, 0.13], ['RightArm', 0.13, 0.3, 0.13],
+  ['LeftForeArm', 0.11, 0.28, 0.11], ['RightForeArm', 0.11, 0.28, 0.11],
+];
+// Animations du modèle (boucles) et vitesse de déplacement correspondant à une lecture normale
+const ALLURES = { walk: 1.5, ready_walk: 1.6, aim_walk: 1.5, ready_run: 4.2 };
+const _ech = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+let echelleModele = 0;                               // calculée une fois (taille du modèle chargé)
+
+/**
+ * Soldat réaliste : clone du modèle animé, matière à la couleur de sa faction, visière lumineuse,
+ * arme dans la main droite, zones de tir sur les os. Mêmes champs que le soldat procédural
+ * (mat, lumineux…) + un mélangeur d'animations.
+ */
+function construireSoldatModele(e, g, t) {
+  const racine = cloner('soldat');
+  if (!echelleModele) {
+    racine.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(racine, true);
+    echelleModele = HAUTEUR_MODELE / Math.max(0.5, b.max.y - b.min.y);
+  }
+  racine.scale.setScalar(echelleModele);
+  racine.updateMatrixWorld(true);
+  e.modele = racine;
+  racine.traverse((o) => {
+    if (!o.isMesh) return;
+    o.raycast = () => {}; // voir ZONES_TIR
+    // la sphère englobante d'un maillage animé ne suit pas la pose : on l'agrandit (chute, bras tendus)
+    if (o.isSkinnedMesh) { o.computeBoundingSphere(); o.boundingSphere.radius *= 1.6; }
+    if (o.material.name === 'Visiere') {
+      o.material = matVisiereVerre(t.visiere);
+      e.lumineux = [o];
+    } else {
+      o.material = e.mat;
+      o.castShadow = true;
+    }
+  });
+  const trouver = (nom) => racine.getObjectByName(os(nom));
+  e.os = { tete: trouver('Head'), cou: trouver('Neck'), buste: trouver('Spine2'), bassin: trouver('Hips') };
+
+  // Zones de tir : boîtes invisibles, dimensions en mètres malgré l'échelle des os
+  for (const [nom, l, h, p, tete] of ZONES_TIR) {
+    const o = trouver(nom);
+    if (!o) continue;
+    o.getWorldScale(_ech);
+    const z = new THREE.Mesh(geoZone);
+    z.visible = false;
+    z.scale.set(l / _ech.x, h / _ech.y, p / _ech.z);
+    z.position.y = (tete ? h * 0.4 : h / 2) / _ech.y; // les membres partent de l'articulation (+y)
+    z.userData.tete = !!tete;
+    o.add(z);
+  }
+
+  e.mixer = new THREE.AnimationMixer(racine);
+  e.actions = {};
+  e.animBase = null;
+  e.animLOD = 0;
+
+  // Arme dans la main droite. Son orientation dans la main est calculée sur la pose « en joue » :
+  // canon vers l'avant du soldat, dessus vers le haut ; elle suit ensuite la main dans toutes les poses.
+  const arme = cloner(t.distance ? 'fusilEnnemi' : 'pmEnnemi');
+  const main = trouver('RightHand');
+  const visee = clip('soldat', 'aim_idle');
+  if (arme && main && visee) {
+    arme.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.raycast = () => {}; } });
+    const b = new THREE.Box3().setFromObject(arme);
+    const L = b.max.x - b.min.x || 1, H = b.max.y - b.min.y; // armes Quaternius : canon le long de +x
+    const s = (t.distance ? 0.95 : 0.62) / L;
+    const a = e.mixer.clipAction(visee);
+    a.play();
+    e.mixer.update(0.3);
+    racine.updateMatrixWorld(true);
+    main.getWorldQuaternion(_q).premultiply(racine.quaternion.clone().invert());
+    main.getWorldScale(_ech);
+    a.stop();
+    // rotation voulue dans le repère du modèle (+x de l'arme → +z du soldat), ramenée dans la main
+    arme.quaternion.setFromAxisAngle(_axeY, -Math.PI / 2).premultiply(_q.invert());
+    arme.scale.set(s / _ech.x, s / _ech.y, s / _ech.z);
+    // la poignée (arrière-bas de l'arme) dans la paume : ~9 cm au-delà du poignet, le long de la main
+    const poignee = new THREE.Vector3(b.min.x + L * 0.3, b.min.y + H * 0.3, (b.min.z + b.max.z) / 2)
+      .multiplyScalar(s).applyQuaternion(arme.quaternion);
+    arme.position.set(0, 0.09, 0.02).sub(poignee).divide(_ech);
+    main.add(arme);
+    e.arme = arme;
+    e.bouche = new THREE.Object3D();
+    e.bouche.position.set(b.max.x, b.min.y + H * 0.7, (b.min.z + b.max.z) / 2);
+    arme.add(e.bouche);
+  }
+  g.add(racine);
+  e.jouer('idle', 0);
+  e.mixer.update(Math.random() * 2); // pose naturelle dès l'apparition, pas tous synchronisés
+}
+const geoZone = new THREE.BoxGeometry(1, 1, 1);
+const _axeY = new THREE.Vector3(0, 1, 0);
+
 const geoTeteMech = new THREE.BoxGeometry(0.8, 0.5, 0.75);
+let matMech = null;
+/** Blindage du mech : peinture métallique usée, rayures en relief, rugosité variable (PBR). */
+function matiereMech() {
+  if (matMech) return matMech;
+  const usure = textureMetalUse();
+  return (matMech = new THREE.MeshStandardMaterial({
+    vertexColors: true, map: usure, metalness: 0.55, roughness: 1,
+    normalMap: normalesDepuis(usure, { force: 1.4, taille: 256 }),
+    roughnessMap: rugositeDepuis(usure, { base: 0.42, variation: 0.3 }),
+  }));
+}
 
 /** Mech-araignée : châssis, tourelle (tir à la tête), yeux rouges, 4 pattes articulées. */
 function construireMech(e, g, t) {
@@ -318,11 +447,14 @@ class Ennemi {
     this.chuteAvant = false; this.chuteCote = 0; this.etincelleMort = 0;
 
     // Modèle (un matériau par ennemi : flash de touche et fondu à la mort)
-    this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35 });
+    if (t.modele === 'mech') this.mat = matiereMech().clone();
+    else if (modeles.soldat) this.mat = matiereSoldat(type).clone();
+    else this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35 });
     const g = new THREE.Group();
     g.rotation.order = 'YXZ';
     g.userData.ennemi = this;
     if (t.modele === 'mech') construireMech(this, g, t);
+    else if (modeles.soldat) construireSoldatModele(this, g, t);
     else construireSoldat(this, g, t);
     g.scale.setScalar(0.01);
     g.position.copy(this.position);
@@ -378,6 +510,7 @@ class Ennemi {
     const cos = Math.cos(this.angle), sin = Math.sin(this.angle);
     this.reculCote = clamp(direction.x * cos - direction.z * sin, -1, 1);
     sons.douleur(!!this.pattes);
+    if (this.mixer) this.unCoup('hit', 0.85, 1.3);
     // Les fantassins font parfois un pas de côté pour sortir de la ligne de tir
     if (!this.pattes && this.esquiveAttente <= 0 && this.etat !== 'attaque' && Math.random() < CHANCE_ESQUIVE) {
       this.esquive = DUREE_ESQUIVE;
@@ -399,6 +532,11 @@ class Ennemi {
     this.chuteAvant = avant > 0.3;
     this.chuteCote = (Math.random() - 0.5) * 0.6;
     sons.criMort(!!this.pattes);
+    if (this.mixer) {
+      this.coup?.fadeOut(0.1);
+      this.coup = null;
+      this.jouer('death', 0.12, 1.25, true);
+    }
   }
 
   entendre(position, portee) {
@@ -418,6 +556,7 @@ class Ennemi {
       this.apparition -= dt;
       const s = 1 - Math.max(0, this.apparition) / DUREE_APPARITION;
       g.scale.setScalar(this.echelle * Math.max(0.01, s));
+      if (this.mixer) this.majMixer(dt, 0);
       return;
     }
     this.temps += dt;
@@ -571,6 +710,9 @@ class Ennemi {
     if (this.pattes) {
       this.animerMech(dt, v);
       g.position.set(this.position.x, 0, this.position.z);
+    } else if (this.mixer) {
+      this.animerModele(dt, v, j, dist);
+      g.position.set(this.position.x, 0, this.position.z);
     } else {
       this.animerSoldat(v, dt);
       this.animerTete(dt, j, dist, this.etat !== 'patrouille');
@@ -638,7 +780,12 @@ class Ennemi {
     const p = Math.min(1, t / DUREE_CHUTE);
     // la visière clignote puis s'éteint
     this.lumineux[0].visible = t < 0.5 && Math.random() < 0.6;
-    if (this.pattes) {
+    if (this.mixer) {
+      // chute animée du modèle ; un peu de côté au hasard
+      this.majMixer(dt, 0);
+      g.rotation.z = this.chuteCote * 0.3 * p;
+      g.position.y = 0;
+    } else if (this.pattes) {
       // le mech s'effondre : pattes écartées, châssis au sol, légère bascule
       const q = Math.min(1, t / 0.5);
       for (const patte of this.pattes) {
@@ -667,7 +814,8 @@ class Ennemi {
       g.position.y = 0.06 * (1 - genoux);
     }
     // dissolution : le corps s'enfonce, s'efface et lâche des étincelles de sa couleur
-    const f = clamp((t - DEBUT_FONDU) / DUREE_FONDU, 0, 1);
+    const debutFondu = this.mixer ? DEBUT_FONDU_MODELE : DEBUT_FONDU;
+    const f = clamp((t - debutFondu) / DUREE_FONDU, 0, 1);
     if (f > 0) {
       g.position.y -= f * 0.35;
       this.mat.opacity = 1 - f;
@@ -682,7 +830,7 @@ class Ennemi {
         c.effets.etincelles(_v, this.t.couleur, this.pattes ? 4 : 2, 0.6, 0.7, 1.6, -0.5);
       }
     }
-    if (t > DEBUT_FONDU + DUREE_FONDU) this.aSupprimer = true;
+    if (t > debutFondu + DUREE_FONDU) this.aSupprimer = true;
   }
 
   animerSoldat(v, dt) {
@@ -723,6 +871,99 @@ class Ennemi {
     // le sursaut écarte un peu les bras
     this.bras[0].rotation.x += r * 0.4;
     this.bras[1].rotation.x += r * 0.3;
+  }
+
+  /**
+   * Lance une animation de base du modèle (boucle), en fondu depuis la précédente.
+   * `unique` : jouée une fois puis figée sur la dernière image (mort).
+   */
+  jouer(nom, fondu = 0.2, vitesse = 1, unique = false) {
+    const action = this.action(nom);
+    if (!action) return;
+    action.timeScale = vitesse;
+    if (this.animBase === action) return;
+    action.reset();
+    action.setLoop(unique ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
+    action.clampWhenFinished = unique;
+    action.play();
+    if (this.animBase && fondu > 0) this.animBase.crossFadeTo(action, fondu, false);
+    else if (this.animBase) this.animBase.stop();
+    this.animBase = action;
+  }
+
+  action(nom) {
+    if (!(nom in this.actions)) {
+      const c = clip('soldat', nom);
+      this.actions[nom] = c ? this.mixer.clipAction(c) : null;
+    }
+    return this.actions[nom];
+  }
+
+  /** Animation courte jouée par-dessus l'animation de base (touché, tir). */
+  unCoup(nom, poids, vitesse) {
+    const action = this.action(nom);
+    if (!action) return;
+    if (this.coup && this.coup !== action) this.coup.fadeOut(0.08);
+    action.reset();
+    action.setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = false;
+    action.timeScale = vitesse;
+    action.setEffectiveWeight(poids);
+    action.fadeIn(0.05);
+    action.play();
+    this.coup = action;
+    this.coupFin = action.getClip().duration / vitesse;
+  }
+
+  /** Met à jour le squelette ; les ennemis lointains sont animés une image sur deux. Vrai si fait. */
+  majMixer(dt, dist) {
+    this.animLOD += dt;
+    if (dist > 28 && (this.lodImpair = !this.lodImpair)) return false;
+    this.mixer.update(this.animLOD);
+    this.animLOD = 0;
+    return true;
+  }
+
+  /** Choisit l'animation du modèle selon l'état de l'IA, puis ajoute regard et sursaut. */
+  animerModele(dt, v, j, dist) {
+    const combat = this.etat !== 'patrouille';
+    let nom;
+    if (this.etat === 'attaque') nom = 'melee';
+    else if (this.t.distance && this.etat === 'poursuite' && this.voit) nom = v > 0.6 ? 'aim_walk' : 'aim_idle';
+    else if (combat) nom = v > 2.8 ? 'ready_run' : v > 0.4 ? 'ready_walk' : 'ready_idle';
+    else nom = v > 0.3 ? 'walk' : 'idle';
+    // la lecture suit la vitesse réelle (pas de pieds qui glissent)
+    const allure = ALLURES[nom];
+    const vitesse = allure ? clamp(v / allure, 0.6, 1.6) * this.tempo : nom === 'melee' ? 1.05 : this.tempo;
+    this.jouer(nom, nom === 'melee' ? 0.08 : 0.22, vitesse);
+    if (this.coup && (this.coupFin -= dt) < 0.12) { this.coup.fadeOut(0.12); this.coup = null; }
+
+    if (!this.majMixer(dt, dist)) return; // image sautée : la pose précédente reste affichée
+
+    // Par-dessus l'animation : la tête suit le joueur (ou balaie les alentours), sursaut au coup
+    let lacet, tangage;
+    if (combat) {
+      lacet = angleCourt(Math.atan2(j.position.x - this.position.x, j.position.z - this.position.z) - this.angle);
+      tangage = -Math.atan2(j.position.y + 1.5 - this.t.yeux * this.echelle, Math.max(dist, 0.5));
+    } else {
+      const amp = this.pause > 0 ? 0.9 : 0.3;
+      lacet = Math.sin(this.temps * 0.9) * amp + Math.sin(this.temps * 2.1) * 0.08;
+      tangage = Math.sin(this.temps * 0.6) * 0.1;
+    }
+    const k = Math.min(1, dt * 8);
+    this.regardTete += (clamp(lacet, -1.0, 1.0) - this.regardTete) * k;
+    this.penchTete += (clamp(tangage, -0.5, 0.4) - this.penchTete) * k;
+    const r = this.recul / DUREE_RECUL;
+    const { tete, cou, buste } = this.os;
+    if (cou) cou.rotation.y += this.regardTete * 0.4;
+    if (tete) {
+      tete.rotation.y += this.regardTete * 0.5;
+      tete.rotation.x += this.penchTete * 0.6 - r * 0.3;
+    }
+    if (buste) {
+      buste.rotation.x -= r * 0.28;
+      buste.rotation.z += this.reculCote * r * 0.2;
+    }
   }
 
   animerMech(dt, v) {
@@ -812,12 +1053,18 @@ class Ennemi {
   tirer(c, dist) {
     const j = c.joueur;
     const s = this.echelle;
-    // bouche du fusil : devant l'épaule droite
-    _origine.set(
-      this.position.x + Math.sin(this.angle) * 1.0 * s + Math.cos(this.angle) * 0.3 * s,
-      1.55 * s,
-      this.position.z + Math.cos(this.angle) * 1.0 * s - Math.sin(this.angle) * 0.3 * s,
-    );
+    if (this.bouche) {
+      // bouche de l'arme tenue par le modèle
+      this.bouche.getWorldPosition(_origine);
+      if (this.mixer) this.unCoup('shoot', 0.7, 1.4);
+    } else {
+      // bouche du fusil : devant l'épaule droite
+      _origine.set(
+        this.position.x + Math.sin(this.angle) * 1.0 * s + Math.cos(this.angle) * 0.3 * s,
+        1.55 * s,
+        this.position.z + Math.cos(this.angle) * 1.0 * s - Math.sin(this.angle) * 0.3 * s,
+      );
+    }
     // Vise le torse en anticipant un peu le mouvement, avec une imprécision
     const t = dist / VITESSE_PROJECTILE;
     _visee.set(
@@ -841,7 +1088,7 @@ class Projectiles {
   constructor(scene, effets) {
     this.effets = effets;
     const geo = new THREE.SphereGeometry(0.13, 10, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x7fe3ff });
+    const mat = declarerLumineux(new THREE.MeshBasicMaterial({ color: 0x7fe3ff }), 2.2);
     const halo = new THREE.MeshBasicMaterial({
       color: 0x2aa8ff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false,
     });

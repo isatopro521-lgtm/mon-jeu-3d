@@ -10,19 +10,30 @@ dans le navigateur (PC et téléphone).
 montagnes enneigées, forêt de sapins, buissons rouges, rochers moussus, lac avec cascade, avant-postes
 industriels aux fenêtres éclairées, antennes, bannières rouges au logo triangle, et une **mégastructure** :
 une tour géante traversée par un anneau qui tourne lentement dans le ciel. Palette acier très sombre +
-accents orange, rouge pour les factions. Tout est généré dans le code (géométries et textures procédurales,
-aucune image à télécharger).
+accents orange, rouge pour les factions. Le décor est généré dans le code (géométries et textures
+procédurales : couleur, relief et rugosité PBR calculés au chargement, aucune image à télécharger).
+
+**Réalisme** : les soldats, les bras du joueur et les armes sont de **vrais modèles 3D animés**
+(glTF, dossier `modeles/`, ~1,9 Mo au total, licences libres CC0 / CC BY — voir [CREDITS.md](CREDITS.md)) :
+soldats en tenue tactique (casque à visière, gilet, sacoches, genouillères) animés au repos, en marche,
+en course, en joue, au tir, touchés et à la mort ; bras gantés tenant un vrai M4A1 (texturé PBR) ou un
+Mossberg 590A1. Matériaux PBR, reflets du ciel, tone mapping ACES. En qualité Haute : halo lumineux
+(néons, visières, flammes de bouche), reflet du soleil, vignettage, anticrénelage MSAA et ombres douces.
+Si un modèle ne peut pas être chargé, le jeu garde automatiquement ses modèles simplifiés.
 
 - **3 types d'ennemis** avec IA (patrouille → alerte → poursuite → attaque, champ de vision et ligne de vue) :
   - **Soldat** (visière rouge) : rapide, attaque au corps à corps (coup de crosse) ;
   - **Tireur** (visière bleue) : garde ses distances, se décale sur le côté et tire ;
   - **Mech-araignée** (yeux rouges, à partir de la vague 3) : lent, très blindé, se cabre et écrase.
-- **Ennemis vivants** (animations procédurales, sans fichier) : respiration, marche différente pour chacun,
-  pauses où ils regardent autour d'eux, tête qui suit le joueur, icône « ! » + visière qui clignote
-  quand ils te repèrent, sursaut et pas de côté quand ils sont touchés, petits cris radio,
-  chute (en avant ou en arrière selon le tir) puis dissolution en étincelles.
+- **Ennemis vivants** : animations du modèle branchées sur l'IA (marche qui suit la vitesse réelle,
+  course, en joue, tir, coup de crosse, touché, chute animée), tête qui suit le joueur, pauses où ils
+  regardent autour d'eux, icône « ! » + visière qui s'allume quand ils te repèrent, sursaut et pas de côté
+  quand ils sont touchés, petits cris radio, puis dissolution en étincelles. Zones de tir sur le squelette
+  (tête, torse, bras, jambes). Les ennemis lointains sont animés une image sur deux (performances).
   L'arme du joueur « respire » doucement à l'arrêt.
-- **2 armes** : fusil d'assaut automatique à lunette et fusil à pompe (9 plombs).
+- **2 armes** : fusil d'assaut automatique (M4A1) et fusil à pompe (Mossberg, 9 plombs, pompe animée).
+  Recul, flamme de bouche, **douilles éjectées** qui rebondissent au sol, rechargement animé
+  (le chargeur tombe, la main en remet un ; cartouches glissées une à une dans le fusil à pompe).
   Munitions : chargeur + **réserve** (affichées « 30 | 120 ») ; caisses de munitions lâchées par les ennemis,
   réserve remise au moins au niveau de départ à chaque fin de vague.
 - **Armure** : 50 au départ, elle encaisse les dégâts avant la vie ; +25 à chaque vague terminée (max 100).
@@ -225,7 +236,11 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/world.js` | Arène : sol, enceinte (grillage, miradors, conteneurs), tours, sacs de sable, caisses ; collisions |
 | `src/decor.js` | Décor autour : terrain, montagnes, forêt, lac, cascade, avant-postes, mégastructure |
 | `src/ciel.js` | Ciel (dégradé + soleil), nuages, brouillard, lumières, reflets |
-| `src/textures.js` | Textures procédurales (canvas) et logo |
+| `src/textures.js` | Textures procédurales (canvas), cartes de relief/rugosité PBR, UV « boîte », logo |
+| `src/modeles.js` | Chargement des modèles glTF (soldat, bras, armes), clones, palette de couleurs des factions |
+| `src/postprocess.js` | Post-traitement de la qualité Haute : halo lumineux, reflet du soleil, vignette, MSAA |
+| `modeles/` | Modèles 3D allégés (glTF binaire) — provenance et licences dans `CREDITS.md` |
+| `scripts/modeles/construire.mjs` | Fabrique les fichiers de `modeles/` à partir des modèles d'origine |
 | `src/tempete.js` | Tempête Nexus (ciel rouge, vortex, éclairs, pluie) |
 | `src/qualite.js` | Niveaux de qualité (haute/moyenne/basse) et mode Auto selon les images/s |
 | `src/enemies.js` | Ennemis (soldats, mech-araignée), IA, projectiles |
@@ -246,13 +261,16 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `sw.js` | Service worker : cache des fichiers du jeu, jeu hors ligne, mises à jour |
 | `manifest.webmanifest` | Manifest de l'app (nom, icônes, plein écran paysage, captures) |
 | `confidentialite.html` | Page de confidentialité (demandée par les stores) |
+| `credits.html`, `CREDITS.md` | Crédits et licences des modèles 3D (lien en bas du menu) |
 | `icons/`, `captures/` | Icônes de l'app et captures d'écran pour les stores |
 
-`lib/three/` contient Three.js 0.160.0. `scripts/zip-itch.sh` fabrique le zip pour itch.io ;
+`lib/three/` contient Three.js 0.160.0 (avec les modules officiels `GLTFLoader`, `SkeletonUtils`,
+`BufferGeometryUtils` et `PointerLockControls` de la même version). `scripts/zip-itch.sh` fabrique le zip pour itch.io ;
 `scripts/generer-icones.mjs` et `scripts/generer-captures.mjs` refont les icônes et les captures,
 `scripts/generer-apercu.mjs` l'image d'aperçu des liens partagés.
 
-Ajouter `?debug` à l'URL expose l'objet `window.jeu` pour le débogage.
+Ajouter `?debug` à l'URL expose l'objet `window.jeu` pour le débogage ; `?sansmodeles` force les
+modèles simplifiés (test du mode de secours).
 
 ## Agent Claude Code
 

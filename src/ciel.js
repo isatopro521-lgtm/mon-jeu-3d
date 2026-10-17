@@ -7,12 +7,14 @@ import { textureNuage } from './textures.js';
 
 export const DIRECTION_SOLEIL = new THREE.Vector3(-0.8, 0.4, -0.5).normalize();
 const RAYON_CIEL = 1400;
+// Brume atmosphérique : les montagnes lointaines se fondent dans la couleur de l'horizon
+const DENSITE_BROUILLARD = 0.00135;
 
 const COULEURS = {
   zenith: new THREE.Color(0x2058b8),
   horizon: new THREE.Color(0xb9d2ea),
   soleilHalo: new THREE.Color(0xffc27a),
-  brouillard: new THREE.Color(0x9fb9d6),
+  brouillard: new THREE.Color(0xa8bdd6),
   // Tempête Nexus
   zenithT: new THREE.Color(0x1a0405),
   horizonT: new THREE.Color(0x7a1c16),
@@ -79,7 +81,7 @@ export function creerCiel(scene, renderer, { qualite = 'haute', tailleOmbres = 2
   pmrem.dispose();
 
   scene.background = null;
-  scene.fog = new THREE.FogExp2(COULEURS.brouillard.clone(), 0.0011);
+  scene.fog = new THREE.FogExp2(COULEURS.brouillard.clone(), DENSITE_BROUILLARD);
 
   // Lumières : soleil bas et chaud, ciel froid
   const hemi = new THREE.HemisphereLight(0xb0ccff, 0x6a5a3c, 1.5);
@@ -158,7 +160,7 @@ export function creerCiel(scene, renderer, { qualite = 'haute', tailleOmbres = 2
       uniforms.uZenith.value.copy(COULEURS.zenith).lerp(COULEURS.zenithT, k);
       uniforms.uHorizon.value.copy(COULEURS.horizon).lerp(COULEURS.horizonT, k);
       scene.fog.color.copy(COULEURS.brouillard).lerp(COULEURS.brouillardT, k);
-      scene.fog.density = 0.0011 + k * 0.0035;
+      scene.fog.density = DENSITE_BROUILLARD + k * 0.0035;
       matNuages.color.setRGB(1, 1, 1).lerp(ROUGE_NUAGE, k);
       hemi.color.copy(base.hemiCiel).lerp(tmp.setRGB(1, 0.35, 0.3), k);
       hemi.intensity = base.hemi * (1 - k * 0.35) + eclair * 4;
