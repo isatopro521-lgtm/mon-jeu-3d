@@ -7,10 +7,12 @@ https://isatopro521-lgtm.github.io/mon-jeu-3d/
 
 La propriétaire du projet veut que le travail se fasse **sans questions** :
 
-1. Toute demande qui touche au jeu (fonctionnalité, bug, réglage, interface, sons…) est
-   confiée **automatiquement** au sous-agent `dev-jeu-3d` (`.claude/agents/dev-jeu-3d.md`),
-   sans demander confirmation. Donne-lui une consigne complète : il ne pose pas de questions
-   et choisit lui-même les détails non précisés.
+1. Toute demande sur le projet (jeu, site, publication, README, itch.io, bugs, idées…) est
+   confiée **automatiquement** au sous-agent `chef-de-projet` (`.claude/agents/chef-de-projet.md`),
+   sans demander confirmation. Il travaille à la place de la propriétaire de bout en bout :
+   code, tests PC + téléphone, commit, push, pull request, fusion, vérification du site.
+   Donne-lui une consigne complète : il ne pose pas de questions.
+   (`dev-jeu-3d` reste disponible pour une tâche purement technique, sans publication.)
 2. Quand l'agent a fini : relire son travail (`git diff`), relancer les vérifications
    (`node --check` sur les fichiers JS, une partie simulée dans Chromium sans écran,
    PC et téléphone), corriger ce qui ne va pas.
