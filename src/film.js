@@ -13,13 +13,14 @@ import { initAudio, sons, contexteAudio } from './audio.js';
 import { estTactile } from './touch.js';
 import { clamp } from './utils.js';
 import { Musique } from './film-musique.js';
+import { Voix } from './film-voix.js';
 
 // ============================================================================================
 // NEXUS FRONTIER — le film : court-métrage en temps réel, avec le décor, les soldats, le mech
 // et la Tempête Nexus du jeu. Tout est écrit sur une ligne de temps (secondes) :
 //  - CUES : événements de mise en scène (apparitions, tirs, explosion…) ;
 //  - PLANS : mouvements de caméra ;
-//  - TEXTES : titres, cartons de chapitre, sous-titres ;
+//  - TEXTES : titres, cartons de chapitre, sous-titres (dits à voix haute : film-voix.js) ;
 //  - FONDUS : fondus au noir entre les scènes.
 // ?debug : window.film pour les tests ; ?capture : images pas à pas (enregistrement vidéo).
 // ============================================================================================
@@ -27,8 +28,13 @@ import { Musique } from './film-musique.js';
 const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 const CAPTURE = params.has('capture');
-const DUREE = 118;                 // durée totale (générique compris)
+// Le temps du film T va de -OUVERTURE à DUREE : les secondes négatives sont l'accroche
+// (flash-forward du combat contre le mech), puis « Une heure plus tôt… » et l'histoire à partir de 0.
+const OUVERTURE = 12;
+const DUREE = 129;                 // fin (scène post-générique comprise)
 const DEBUT_GENERIQUE = 108;
+const FIN_GENERIQUE = 116;         // générique court, puis la scène post-générique
+const TOTAL = DUREE + OUVERTURE;   // durée affichée au spectateur
 const CADRE_PAYSAGE = 2.2;         // format « cinémascope » (bandes noires)
 const CADRE_PORTRAIT = 1;          // en portrait : image carrée, textes dans les bandes
 const VITESSE_BOLT = 22;
@@ -42,7 +48,10 @@ const el = {
   accueil: $('accueil'), fin: $('fin'), lancer: $('btn-lancer'), chargement: $('chargement'),
   controles: $('controles'), lecture: $('c-lecture'), recommencer: $('c-recommencer'), son: $('c-son'),
   plein: $('c-plein'), barre: $('c-barre-remplie'), temps: $('c-temps'), revoir: $('btn-revoir'),
-  generique: $('generique'), portrait: $('conseil-portrait'),
+  generique: $('generique'), portrait: $('conseil-portrait'), etalonnage: $('etalonnage'),
+  voix: $('c-voix'), voixAccueil: $('btn-voix'), mini: $('mini-barre'), chapitres: $('c-chapitres'),
+  compte: $('h-compte'), compteValeur: $('h-compte-valeur'), bouclier: $('h-bouclier'),
+  bouclierBarre: $('h-bouclier-barre'), bouclierValeur: $('h-bouclier-valeur'),
 };
 document.body.classList.toggle('tactile', estTactile);
 document.body.classList.toggle('capture', CAPTURE);
@@ -170,6 +179,20 @@ const sprite = (map, additif) => {
 const boule = sprite(texFeu, true), coeur = sprite(texFeu, true);
 const fumees = [0, 1, 2].map(() => sprite(texFumee, false));
 const etatBoule = { t: 9 };
+// Après l'explosion : l'épave du mech fume et crache des braises (sprites réutilisés en boucle)
+const fumeesEpave = [0, 1, 2, 3].map(() => sprite(texFumee, false));
+const epave = { actif: false, t: 0, braises: 0, position: new THREE.Vector3() };
+// Lumière bleue des tirs ennemis
+const lumiereEnnemi = new THREE.PointLight(0x5ac8ff, 0, 7, 2);
+scene.add(lumiereEnnemi);
+// Fin : le « signal inconnu » qui s'allume au sommet de la Mégastructure
+const texSignal = textureHalo([[0, 'rgba(255,230,230,1)'], [0.18, 'rgba(255,60,60,0.95)'], [0.5, 'rgba(200,0,20,0.35)'], [1, 'rgba(120,0,0,0)']]);
+const signal = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: texSignal, transparent: true, depthWrite: false, depthTest: false, opacity: 0, blending: THREE.AdditiveBlending, fog: false,
+}));
+signal.renderOrder = 10; // toujours devant la tour (rien d'autre ne passe devant dans ces plans)
+signal.visible = false;
+scene.add(signal);
 
 // Vecteurs temporaires (aucune allocation dans la boucle)
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _o = new THREE.Vector3(), _d = new THREE.Vector3();
@@ -293,6 +316,9 @@ class Acteur {
 }
 
 let heros = null, s1 = null, s2 = null, s3 = null, t1 = null, t2 = null, mech = null;
+const armee = [];   // scène post-générique : les mechs qui se réveillent
+let bouclier = 100; // bouclier de l'héroïne (affiché à l'écran pendant les combats)
+function blesser(n) { bouclier = Math.max(0, bouclier - n); }
 let dernierSonTouche = 0;
 
 function toucherActeur(a, degats, direction, point, tete = false) {
@@ -321,6 +347,7 @@ function tirHeros(cible, degats = 22, rate = false) {
   if (planCourant?.pov) {
     armes.munitions[armes.indice] = armes.arme.chargeur;
     armes.tirer(); // tir réel depuis la caméra (lancer de rayon sur les zones de tir des ennemis)
+    secousse = Math.max(secousse, 0.3); // recul ressenti
     if (degats >= 999 && !cible.e.mort) {
       cible.torse(_w);
       toucherActeur(cible, degats, _d.copy(_w).sub(camera.position).normalize(), _w);
@@ -337,6 +364,7 @@ function tirHeros(cible, degats = 22, rate = false) {
   effets.etincelles(_o, 0xffd27a, 4, 1.5, 0.12, 0, 0);
   lumiereTir.position.copy(_o);
   lumiereTir.intensity = 7;
+  secousse = Math.max(secousse, 0.15);
   sons.tir();
   if (rate || cible.e.mort) { effets.etincelles(_w, 0xffd27a, 5, 3, 0.3); return; }
   _d.copy(_w).sub(_o).normalize();
@@ -371,7 +399,21 @@ function tirEnnemi(a, cx, cy, cz, blesse = false) {
   b.mesh.visible = true;
   b.mesh.position.copy(b.de);
   effets.etincelles(b.de, 0x7fe3ff, 5, 1.5, 0.15, 0, 0);
+  lumiereEnnemi.position.copy(b.de);
+  lumiereEnnemi.intensity = 6;
   sons.tirEnnemi();
+}
+
+/** Tir ennemi qui frôle la caméra (vue subjective) : il passe à côté et va se perdre derrière. */
+function frolerCamera(a, cote = 1) {
+  if (!a || a.e.mort) return;
+  a.bouche(_o);
+  _d.copy(camera.position).sub(_o).normalize();
+  _w.copy(camera.position).addScaledVector(_d, 6);
+  _w.x += -_d.z * 0.9 * cote;
+  _w.z += _d.x * 0.9 * cote;
+  _w.y = Math.max(0.1, _w.y - 0.6);
+  tirEnnemi(a, _w.x, _w.y, _w.z);
 }
 
 function majBolts(dt) {
@@ -385,6 +427,7 @@ function majBolts(dt) {
       b.mesh.visible = false;
       effets.etincelles(b.a, 0x66d9ff, 10, 3, 0.4);
       if (b.blesse && heros) {
+        blesser(15);
         heros.e.toucher(1, _d.copy(b.a).sub(b.de).normalize());
         secousse = Math.max(secousse, 0.5);
       }
@@ -442,6 +485,30 @@ function majGrenade(dt) {
   });
   lumiereExplosion.intensity = Math.max(0, 1 - etatBoule.t / 1.2) * 60;
   lumiereTir.intensity = Math.max(0, lumiereTir.intensity - dt * 120);
+  lumiereEnnemi.intensity = Math.max(0, lumiereEnnemi.intensity - dt * 90);
+  majEpave(dt);
+}
+
+/** L'épave du mech : colonne de fumée qui monte en boucle et braises, jusqu'à l'épilogue. */
+function majEpave(dt) {
+  const actif = epave.actif && T < 101;
+  for (let i = 0; i < fumeesEpave.length; i++) {
+    const f = fumeesEpave[i];
+    f.visible = actif;
+    if (!actif) continue;
+    const k = (epave.t * 0.22 + i / fumeesEpave.length) % 1;
+    const apparition = Math.min(1, epave.t / 1.5) * Math.min(1, (101 - T) / 2);
+    f.position.set(epave.position.x + Math.sin(k * 3 + i) * 0.6 + k * 2.2, 0.8 + k * 9, epave.position.z - k * 1.2);
+    f.scale.setScalar(2.2 + k * 7);
+    f.material.opacity = Math.sin(k * Math.PI) * 0.6 * apparition;
+  }
+  if (!actif) return;
+  epave.t += dt;
+  epave.braises -= dt;
+  if (epave.braises <= 0) {
+    epave.braises = 0.22;
+    effets.etincelles(_o.copy(epave.position).setY(0.6), 0xff8a30, 3, 1.6, 0.9, 2.5, 1.5);
+  }
 }
 
 function exploser(p) {
@@ -454,7 +521,10 @@ function exploser(p) {
   effets.etincelles(p, 0xff4a1a, 60, 6, 1.4, 2, 3);
   effets.etincelles(p, 0xffe0a0, 40, 14, 0.6, 3, 9);
   sons.explosion(1);
-  secousse = 1.2;
+  secousse = 1.4;
+  epave.actif = true;
+  epave.t = 0;
+  epave.position.copy(p).setY(0);
   tempete.frapper();
   if (mech && !mech.e.mort) toucherActeur(mech, 9999, _d.set(0.7, 0, -0.7), _w.copy(p));
 }
@@ -464,6 +534,31 @@ function exploser(p) {
 // ============================================================================================
 const HAUT_MEGA = [MEGA.x, MEGA.hauteurAnneau, MEGA.z];
 const CUES = [
+  // --- Accroche (flash-forward) : Varga, bouclier à zéro, face au mech sous la tempête ---
+  [-12, () => {
+    heros = new Acteur('heros', -3, 8.6, { angle: 2.6 });
+    mech = new Acteur('brute', 4.6, 1.5, { angle: -2.3 });
+    heros.attitude('poursuite', true).fixer(mech);
+    mech.attitude('poursuite', true).fixer(heros);
+    tempete.k = 1;
+    tempete.demarrer();
+    bouclier = 8;
+  }],
+  [-11.5, () => tirEnnemi(mech, heros.e.position.x + 1, 0.3, heros.e.position.z - 0.6)],
+  [-10.9, () => tirEnnemi(mech, heros.e.position.x - 0.8, 1.9, heros.e.position.z + 0.5)],
+  [-10.2, () => tempete.frapper()],
+  ...rafale(-9.5, () => mech, 6, { degats: 3, achever: false }),
+  [-8.3, () => { tirEnnemi(mech, heros.e.position.x + 0.3, 1.5, heros.e.position.z, true); }],
+  ...rafale(-7.4, () => mech, 5, { degats: 3, achever: false }),
+  [-6.3, () => { mech.e.etat = 'attaque'; mech.e.timer = 0.4; sons.alerte(true); secousse = 0.7; }],
+  [-5.4, () => tempete.frapper()],
+  [-4.8, () => tirEnnemi(mech, heros.e.position.x - 1.1, 0.4, heros.e.position.z - 0.5)],
+  [-4.4, () => tirEnnemi(mech, heros.e.position.x + 0.9, 1.2, heros.e.position.z + 0.4)],
+  [-3.6, () => {
+    mech.e.etat = 'attaque'; mech.e.timer = 0.4;
+    heros.e.toucher(1, _d.set(-0.6, 0, 0.8)); sons.coup(); secousse = 1.3; bouclier = 0;
+  }],
+  [-2.9, nettoyerScene], // coupe au noir : retour en arrière
   // --- Scène 2 : l'arrivée ---
   [15.9, () => {
     heros = new Acteur('heros', -5.5, 26, { angle: Math.PI });
@@ -485,22 +580,27 @@ const CUES = [
   [49, () => { for (const a of [s1, s2, s3]) a.attitude('poursuite', true); for (const a of [t1, t2]) a.attitude('poursuite', true); }],
   // --- Scène 4 : le combat ---
   [51.5, () => s3.aller([[5.5, -17], [3.6, 3.2], [-0.2, 4.5]], 3.6)],
-  [52, () => {
-    heros.attitude('poursuite', true);
+  [50.6, () => { // les soldats chargent
     s1.aller([[-3.5, -6], [-2.2, 2.6]], 4.2);
     s2.aller([[4.5, -8], [1.8, 2.8]], 4.0);
+  }],
+  [52, () => {
+    heros.attitude('poursuite', true).aller([[-4.8, 4.4]], 2.6); // se décale : la plateforme ne la gêne plus
     t1.aller([[-14, -4], [-15, -8], [-14, -3]], 1.4);
     t2.aller([[14, -2], [15, -7], [14, -2]], 1.4);
   }],
-  ...rafale(52.9, () => s1, 6),
-  ...rafale(54.6, () => s2, 6),
+  [52.7, () => frolerCamera(t1, 1)],             // vue subjective : les tirs frôlent la caméra
+  ...rafale(53.8, () => s1, 6),
+  [54.6, () => frolerCamera(t2, -1)],
+  ...rafale(55.3, () => s2, 6),
+  [56.2, () => frolerCamera(t1, -1)],
   [56.3, () => tirEnnemi(t2, heros.e.position.x + 0.7, 1.7, heros.e.position.z - 0.5)],
   [57.3, () => { tirEnnemi(t1, heros.e.position.x - 0.8, 1.2, heros.e.position.z + 0.4); heros.fixer(t1); }],
   ...rafale(58.0, () => t1, 5),
   [58.9, () => tirEnnemi(t2, heros.e.position.x + 0.5, 0.6, heros.e.position.z - 1.2)],
   [59.6, () => heros.fixer(s3)],
   [60.5, () => { if (s3 && !s3.e.mort) { s3.e.etat = 'attaque'; s3.e.timer = 0.4; } }],
-  [60.9, () => { heros.e.toucher(1, _d.set(-0.6, 0, 0.8)); sons.coup(); secousse = 0.8; }],
+  [60.9, () => { heros.e.toucher(1, _d.set(-0.6, 0, 0.8)); sons.coup(); secousse = 0.8; blesser(20); }],
   ...rafale(61.4, () => s3, 4),
   [62.0, () => heros.fixer(t2)],
   [63.0, () => tirEnnemi(t2, heros.e.position.x - 0.6, 1.5, heros.e.position.z + 0.3)],
@@ -516,17 +616,37 @@ const CUES = [
   }],
   [68.5, () => heros.attitude('poursuite', true).fixer(mech)],
   [72.5, () => sons.alerte(true)],
+  // le mech riposte : salves d'énergie qui encadrent l'héroïne
+  [72.9, () => tirEnnemi(mech, heros.e.position.x + 1.1, 0.3, heros.e.position.z - 0.8)],
+  [73.4, () => tirEnnemi(mech, heros.e.position.x - 0.9, 1.9, heros.e.position.z + 0.6)],
+  [74.6, () => tirEnnemi(mech, heros.e.position.x + 0.4, 0.2, heros.e.position.z - 1.4)],
+  [77.6, () => tirEnnemi(mech, heros.e.position.x - 1.2, 0.4, heros.e.position.z - 0.4)],
+  [79.9, () => tirEnnemi(mech, heros.e.position.x + 0.6, 1.6, heros.e.position.z + 0.2, true)],
   ...rafale(76.6, () => mech, 6, { degats: 6, achever: false }),
   ...rafale(78.4, () => mech, 6, { degats: 6, achever: false }),
   [79.2, () => heros.aller([[-3, 8.6]], 1.1)],
-  [80.4, () => { mech.e.etat = 'attaque'; mech.e.timer = 0.4; sons.alerte(true); }],
+  [80.4, () => { mech.e.etat = 'attaque'; mech.e.timer = 0.4; sons.alerte(true); blesser(25); }],
   ...rafale(81.2, () => mech, 5, { degats: 6, achever: false }),
-  [83.6, () => { mech.e.etat = 'attaque'; mech.e.timer = 0.4; sons.coup(); secousse = 0.6; }],
+  // tout semble perdu : le mech frappe, le bouclier tombe à zéro
+  [83.6, () => {
+    mech.e.etat = 'attaque'; mech.e.timer = 0.4; sons.coup(); secousse = 1.1; bouclier = 0;
+    heros.e.toucher(1, _d.set(-0.7, 0, 0.7));
+  }],
   [85.0, lancerGrenade],
   // --- Après l'explosion ---
   [89.5, () => tempete.arreter()],
   [90.5, () => heros.attitude('alerte').regarder(3.6, 0, 2)],
   [93.5, () => heros.attitude('patrouille').regarder(HAUT_MEGA[0], 40, HAUT_MEGA[2])],
+  // --- Après le générique : le signal réveille une armée de mechs ---
+  [DEBUT_GENERIQUE + 0.5, nettoyerScene],
+  [FIN_GENERIQUE - 0.5, () => { tempete.k = 0.8; tempete.demarrer(); }],
+  ...[[0, -4, -15], [0.5, 4.5, -17], [1.0, -9, -19], [1.5, 9.5, -21], [2.1, 0.5, -24]].map(([dt, x, z]) => [FIN_GENERIQUE + 0.4 + dt, () => {
+    const m = new Acteur('brute', x, z, { angle: 0, apparition: true });
+    m.attitude('poursuite', true).regarder(0, 0, 10).aller([[x * 0.8, z + 9]], 1.1);
+    armee.push(m);
+  }]),
+  [FIN_GENERIQUE + 4.9, () => { sons.alerte(true); tempete.frapper(); }],
+  [FIN_GENERIQUE + 7.6, () => { tempete.frapper(); secousse = 0.6; }],
 ];
 CUES.sort((a, b) => a[0] - b[0]);
 
@@ -549,8 +669,50 @@ function suivre(acteur, dx, dy, dz, cx, cy, cz) {
 function pointHeros(sortie, y = 1.5) {
   return heros ? sortie.set(heros.e.position.x, y, heros.e.position.z) : sortie.set(-1.5, y, 5.5);
 }
+/** Gros plan : caméra placée devant `qui`, du côté de `vers` (distance, côté, hauteur), qui le regarde. */
+function face(qui, vers, distance, cote, hauteur, hauteurCible) {
+  if (!qui || !vers) return;
+  const a = qui.e.position, b = vers.e.position;
+  _d.set(b.x - a.x, 0, b.z - a.z).normalize();
+  camPos.set(a.x + _d.x * distance - _d.z * cote, hauteur, a.z + _d.z * distance + _d.x * cote);
+  camCible.set(a.x, hauteurCible, a.z);
+}
+/** Par-dessus l'épaule : caméra derrière `de` (recul, décalage de côté, hauteur), qui regarde `vers`. */
+function epaule(de, vers, recul, cote, hauteur, hauteurCible) {
+  if (!de || !vers) return;
+  const a = de.e.position, b = vers.e.position;
+  _d.set(b.x - a.x, 0, b.z - a.z).normalize();
+  camPos.set(a.x - _d.x * recul - _d.z * cote, hauteur, a.z - _d.z * recul + _d.x * cote);
+  camCible.set(b.x, hauteurCible, b.z);
+}
 
 const PLANS = [
+  // Accroche (flash-forward) : plans courts, caméra nerveuse
+  { d: -12, f: -9.8, main: 0.9, fn(u) {  // contre-plongée sur le mech sous les éclairs
+    if (!mech) return 40;
+    const p = mech.e.position;
+    camPos.set(p.x - 2.3 - u * 0.4, 0.35, p.z + 4.4 - u * 0.8);
+    camCible.set(p.x, 2.6, p.z);
+    return 42;
+  } },
+  { d: -9.8, f: -7.8, main: 0.9, fn(u) {  // gros plan sur Varga qui tire
+    face(heros, mech, 2.2 - u * 0.3, 0.7, 1.6, 1.45);
+    return 34;
+  } },
+  { d: -7.8, f: -5.9, main: 1, fn(u) {   // par-dessus son épaule : le mech charge
+    epaule(heros, mech, 1.9 - u * 0.4, 0.6, 1.75, 2.1);
+    return 40;
+  } },
+  { d: -5.9, f: -4.0, main: 0.7, fn(u) { // plan large, les éclairs
+    camPos.set(-9 + u * 0.8, 2.4 - u * 0.4, 15 - u * 0.8);
+    camCible.set(1.4, 1.4, 3.8);
+    return 40;
+  } },
+  { d: -4.0, f: -2.9, main: 1.2, fn(u) { // très gros plan : le coup qui arrive
+    face(heros, mech, 1.5 - u * 0.2, -0.45, 1.62, 1.55);
+    return 28;
+  } },
+  { d: -2.9, f: 0, fn() { return 50; } }, // noir : « Une heure plus tôt… »
   // Scène 1 — prologue : grand panoramique vers la Mégastructure, puis l'avant-poste
   { d: 0, f: 9, fn(u) {
     const k = lisse(u);
@@ -567,13 +729,20 @@ const PLANS = [
   // Scène 2 — l'arrivée
   { d: 16, f: 21, fn() { if (heros) suivre(heros, 0.9, 1.75, 3.0, 0, 1.4, -8); return 55; } },
   { d: 21, f: 27, fn() { if (heros) suivre(heros, 1.1, 0.7, -3.3, 0, 1.45, 0); return 44; } },
-  { d: 27, f: 36, init() { pointHeros(suiviLisse, 1.2); }, fn(u, tl, dt) {
+  { d: 27, f: 31.4, init() { pointHeros(suiviLisse, 1.2); }, fn(u, tl, dt) {
     const k = lisse(u);
-    melange(camPos, [11, 2.2, 15], [13, 8.5, 18], k);
+    melange(camPos, [11, 2.2, 15], [12.5, 6.5, 17], k);
     pointHeros(_v, 1.2);
     suiviLisse.lerp(_v, 1 - Math.exp(-3 * dt));
     camCible.copy(suiviLisse);
     return 46;
+  } },
+  // contre-plongée : l'héroïne, minuscule, face à la Mégastructure
+  { d: 31.4, f: 36, fn(u) {
+    pointHeros(_v, 0);
+    camPos.set(_v.x + 0.75 - u * 0.25, 0.42 + u * 0.18, _v.z + 1.7 + u * 0.5);
+    camCible.set(_v.x + 1.6, 3.4 + u * 0.8, _v.z - 12);
+    return 52;
   } },
   // Scène 3 — l'embuscade
   { d: 36, f: 41, fn(u) {
@@ -608,13 +777,19 @@ const PLANS = [
     else if (t2) t2.torse(_v);
     viseeLissee.lerp(_v, 1 - Math.exp(-7 * dt));
     camCible.copy(viseeLissee);
-    return 62;
+    return 47; // champ resserré (visée) : les ennemis remplissent l'image
   } },
-  { d: 57, f: 62.5, main: 1, fn(u) {
+  { d: 57, f: 59.8, main: 1, fn(u) {
     pointHeros(_v, 0);
-    camPos.set(_v.x - 3.2 + u * 0.6, 1.9, _v.z + 3.4);
-    camCible.set(_v.x + 2, 1.0, _v.z - 8);
-    return 55;
+    camPos.set(_v.x - 2.1 + u * 0.5, 1.75, _v.z + 2.5 - u * 0.3);
+    camCible.set(_v.x + 1.6, 1.15, _v.z - 7);
+    return 50;
+  } },
+  // le soldat qui charge, vu par-dessus l'épaule de Varga
+  { d: 59.8, f: 62.5, main: 1.1, fn(u) {
+    if (s3 && !s3.e.mort) epaule(heros, s3, 1.6 - u * 0.3, 0.6, 1.7, 1.4);
+    else { pointHeros(_v, 0); camPos.set(_v.x + 1.6, 1.6, _v.z + 1.8); camCible.set(_v.x, 1.4, _v.z - 3); }
+    return 44;
   } },
   { d: 62.5, f: 67, main: 0.6, fn(u) {
     pointHeros(_v, 0);
@@ -623,15 +798,32 @@ const PLANS = [
     camCible.set(_v.x, 1.35, _v.z);
     return 45;
   } },
-  { d: 67, f: 76, init() { suiviLisse.set(7, 2, -27); }, fn(u, tl, dt) {
-    camPos.set(1.4, 0.35 + u * 0.15, -2.6 - u * 1.2);
-    if (mech) mech.torse(_v).setY(2.2); else _v.set(7, 2, -27);
-    suiviLisse.lerp(_v, 1 - Math.exp(-3 * dt));
+  // le mech surgit : contre-plongée qui recule devant lui
+  { d: 67, f: 71.6, main: 0.7, init() { suiviLisse.set(7, 2.4, -27); }, fn(u, tl, dt) {
+    if (mech) _w.set(mech.e.position.x, 0, mech.e.position.z); else _w.set(7, 0, -27);
+    camPos.set(_w.x - 2.4, 0.4 + u * 0.15, _w.z + 7.2 - u * 1.4);
+    _v.set(_w.x, 2.5, _w.z);
+    suiviLisse.lerp(_v, 1 - Math.exp(-4 * dt));
     camCible.copy(suiviLisse);
+    return 44 - u * 4;
+  } },
+  // par-dessus l'épaule de l'héroïne : le mech avance sous les éclairs
+  { d: 71.6, f: 76, main: 0.8, fn(u) {
+    pointHeros(_v, 0);
+    if (mech) _w.set(mech.e.position.x, 0, mech.e.position.z); else _w.set(5, 0, -10);
+    _d.set(_w.x - _v.x, 0, _w.z - _v.z).normalize();
+    camPos.set(_v.x - _d.x * (2 - u * 0.3) - _d.z * 0.65, 1.8, _v.z - _d.z * (2 - u * 0.3) + _d.x * 0.65);
+    camCible.set(_w.x, 1.9, _w.z);
+    return 40;
+  } },
+  // Scène 5 — la tempête : au ras du sol, les pattes du mech
+  { d: 76, f: 78.6, main: 0.9, fn(u) {
+    if (mech) _w.set(mech.e.position.x, 0, mech.e.position.z); else _w.set(5, 0, -3);
+    camPos.set(_w.x + 3.8 - u * 0.6, 0.3, _w.z + 4.6);
+    camCible.set(_w.x, 1.5, _w.z);
     return 46;
   } },
-  // Scène 5 — la tempête
-  { d: 76, f: 81, main: 1, fn(u) {
+  { d: 78.6, f: 81, main: 1, fn(u) {
     pointHeros(_v, 0);
     camPos.set(_v.x - 1.6, 2.3, _v.z + 4.4 - u * 0.6);
     if (mech) mech.torse(camCible); else camCible.set(3, 1.5, 0);
@@ -650,50 +842,97 @@ const PLANS = [
     camCible.set(1.6, 1.3, 3.8);
     return 48;
   } },
-  { d: 91, f: 98, fn(u) {
+  { d: 91, f: 94.5, fn(u) {
     pointHeros(_v, 0);
-    const a = 2.3 + lisse(u) * 0.9;
+    const a = 2.3 + lisse(u) * 0.45;
     camPos.set(_v.x + Math.sin(a) * 4.5, 1.6 + u * 0.6, _v.z + Math.cos(a) * 4.5);
     camCible.set(_v.x, 1.4, _v.z);
     return 42;
   } },
+  // profil de Varga, l'épave fume derrière elle
+  { d: 94.5, f: 98, fn(u) {
+    pointHeros(_v, 0);
+    camPos.set(_v.x - 2.6 + u * 0.4, 1.55, _v.z - 0.6);
+    camCible.set(_v.x + 2.5, 1.5, _v.z - 1.0);
+    return 42;
+  } },
   // Scène 6 — épilogue : la caméra s'élève vers la Mégastructure
-  { d: 98, f: DUREE, fn(u, tl) {
+  { d: 98, f: DEBUT_GENERIQUE, fn(u, tl) {
     const k = lisse(Math.min(1, tl / 10));
     pointHeros(_v, 0);
     melange(camPos, [_v.x + 2.6, 1.6, _v.z + 4.2], [14, 30, 46], k);
     melange(camCible, [_v.x, 1.5, _v.z], HAUT_MEGA, lisse(Math.min(1, tl / 10) ** 1.4));
     return 46 + k * 6;
   } },
+  { d: DEBUT_GENERIQUE, f: FIN_GENERIQUE, fn() { return 50; } }, // générique sur fond noir
+  // Post-générique : au ras du sol, les mechs avancent ; la caméra lève les yeux vers le signal
+  { d: FIN_GENERIQUE, f: DUREE + 5, main: 0.6, fn(u, tl) {
+    const k = lisse(Math.min(1, tl / 8));
+    camPos.set(5.8, 0.45 + k * 0.5, 7 - tl * 0.25); // à côté de la plateforme (elle cacherait les mechs)
+    camCible.set(3 + k * 3, 1.8 + k * 4.5, -20);
+    return 50;
+  } },
 ];
 
 // ============================================================================================
 // Textes à l'écran. type : narration (centre), titre, chapitre (carton), replique (sous-titre)
 // ============================================================================================
+// voix : personnage qui dit la réplique à voix haute (film-voix.js) — le texte dit est exactement
+// le sous-titre affiché (sans le nom du personnage, sauf direQui).
 const TEXTES = [
-  { d: 1.5, f: 6.6, type: 'narration', html: 'Aux confins du monde connu…' },
-  { d: 4.4, f: 8.8, type: 'narration bas', html: '…la Mégastructure Nexus veille sur la dernière frontière.' },
+  // Accroche
+  { d: -11.7, f: -9.2, type: 'replique radio alerte', voix: 'base', html: '<span class="qui">Base · radio</span> Varga ! Bouclier à zéro ! Sortez de là !' },
+  { d: -8.9, f: -6.5, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Pas tant que je respire !' },
+  { d: -5.7, f: -3.0, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Ce signal… c’était un piège.' },
+  { d: -2.6, f: -0.2, type: 'narration', voix: 'narrateur', html: 'Une heure plus tôt…' },
+  // Scène 1 — prologue
+  { d: 1.2, f: 4.6, type: 'narration', voix: 'narrateur', html: 'Aux confins du monde connu…' },
+  { d: 4.8, f: 9.1, type: 'narration bas', voix: 'narrateur', html: '…la Mégastructure Nexus émet un signal inconnu.' },
   { d: 9.4, f: 15.2, type: 'titre', html: `<svg class="logo"><use href="#logo"/></svg>
       <h1><span class="nexus">NEXUS</span><span class="frontier">FRONTIER</span></h1>
       <p class="sous-titre">Le film</p>` },
   { d: 16.6, f: 20.4, type: 'chapitre', html: '<b>I</b> L’arrivée' },
-  { d: 17.2, f: 21, type: 'replique', html: '<span class="qui">Sergente Kaï Varga</span> éclaireuse de l’avant-poste Nexus' },
-  { d: 21.8, f: 25.6, type: 'replique', html: '<span class="qui">Varga</span> Base, ici Varga. J’arrive à l’avant-poste.' },
-  { d: 26.2, f: 30.6, type: 'replique radio', html: '<span class="qui">Base · radio</span> Reçu. Plus aucun signal depuis trois jours… Prudence.' },
-  { d: 31.6, f: 35, type: 'replique', html: '<span class="qui">Varga</span> Personne. Pas un bruit…' },
+  { d: 17.0, f: 21.2, type: 'replique', voix: 'narrateur', direQui: true,
+    html: '<span class="qui">Sergente Kaï Varga.</span> Éclaireuse. Envoyée seule.' },
+  { d: 21.6, f: 25.4, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Base, ici Varga. J’arrive à l’avant-poste.' },
+  { d: 25.9, f: 30.8, type: 'replique radio', voix: 'base', html: '<span class="qui">Base · radio</span> Reçu. Silence radio depuis trois jours… sauf ce signal.' },
+  { d: 31.6, f: 35.2, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Ce signal… qu’est-ce que tu caches ?' },
   { d: 36.6, f: 40.2, type: 'chapitre', html: '<b>II</b> L’embuscade' },
-  { d: 43.9, f: 46, type: 'replique', html: '<span class="qui">Varga</span> Embuscade !' },
-  { d: 47.2, f: 51.4, type: 'replique', html: '<span class="qui">Varga</span> Base ! Contact, plusieurs hostiles !' },
+  { d: 38.9, f: 41.2, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Trop calme… Attends.' },
+  { d: 43.9, f: 46.1, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Embuscade !' },
+  { d: 46.6, f: 49.2, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Base ! Contact, plusieurs hostiles !' },
+  { d: 49.4, f: 52.1, type: 'replique radio', voix: 'base', html: '<span class="qui">Base · radio</span> Tenez bon ! La Tempête frappe dans vingt secondes !' },
   { d: 52.2, f: 55.4, type: 'chapitre', html: '<b>III</b> Le combat' },
-  { d: 65.6, f: 67.6, type: 'replique', html: '<span class="qui">Varga</span> Zone dégagée… ?' },
-  { d: 69.6, f: 74, type: 'replique', html: '<span class="qui">Varga</span> Un mech-araignée… et la Tempête Nexus avec lui.' },
+  { d: 57.2, f: 59.3, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Tireurs sur les flancs !' },
+  { d: 61.3, f: 63.1, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Pas aujourd’hui !' },
+  { d: 65.6, f: 67.5, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Zone dégagée… ?' },
+  { d: 67.8, f: 71.4, type: 'replique radio', voix: 'base', html: '<span class="qui">Base · radio</span> Varga ! Pas de renforts possibles. Repliez-vous !' },
+  { d: 71.8, f: 75.9, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Négatif. Un mech-araignée… Je le retiens ici.' },
   { d: 76.3, f: 79.8, type: 'chapitre', html: '<b>IV</b> La tempête' },
-  { d: 81.6, f: 84.8, type: 'replique', html: '<span class="qui">Varga</span> Allez… approche encore un peu.' },
-  { d: 92.2, f: 96.6, type: 'replique', html: '<span class="qui">Varga</span> Base, ici Varga. L’avant-poste est sécurisé.' },
+  { d: 79.0, f: 81.2, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Son blindage encaisse tout…' },
+  { d: 81.4, f: 83.5, type: 'replique radio alerte', voix: 'base', html: '<span class="qui">Base · radio</span> Varga ! Votre bouclier lâche !' },
+  { d: 84.0, f: 86.3, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Approche… Prends ça !' },
+  { d: 92.0, f: 96.6, type: 'replique', voix: 'varga', html: '<span class="qui">Varga</span> Base, ici Varga. Le mech est tombé. L’avant-poste tient.' },
   { d: 98.4, f: 101.6, type: 'chapitre', html: '<b>V</b> Épilogue' },
-  { d: 98.8, f: 102.8, type: 'replique radio', html: '<span class="qui">Base · radio</span> Bien reçu, Varga. Tiens la frontière.' },
-  { d: 103.2, f: 107.4, type: 'narration', html: 'La frontière tient.<br><span class="petit">Pour l’instant…</span>' },
+  { d: 98.6, f: 101.6, type: 'replique radio', voix: 'base', html: '<span class="qui">Base · radio</span> Bien reçu, Varga. Tiens la frontière.' },
+  { d: 101.8, f: 104.7, type: 'narration', voix: 'narrateur', html: 'La frontière tient.<br><span class="petit">Pour l’instant…</span>' },
+  { d: 104.9, f: 107.8, type: 'replique radio alerte', voix: 'base', html: '<span class="qui">Base · radio</span> Varga… le signal. Il s’intensifie !' },
+  // Post-générique : la réponse au mystère, et la suite
+  { d: FIN_GENERIQUE + 1.0, f: FIN_GENERIQUE + 4.7, type: 'narration bas', voix: 'narrateur', html: 'Ce signal n’était pas un appel au secours…' },
+  { d: FIN_GENERIQUE + 5.0, f: FIN_GENERIQUE + 7.7, type: 'narration bas', voix: 'narrateur', html: '…c’était un appel aux armes.' },
+  { d: FIN_GENERIQUE + 7.9, f: DUREE - 0.2, type: 'titre suite-titre', html: `<svg class="logo"><use href="#logo"/></svg>
+      <h1><span class="nexus">NEXUS</span><span class="frontier">FRONTIER</span></h1>
+      <p class="sous-titre episode">Épisode 2 · À suivre…</p>` },
 ];
+// Repères de chapitres sur la barre de progression (accroche, I à V, post-générique)
+const REPERES = [[0, 'Début'], ...TEXTES.filter((t) => t.type === 'chapitre').map((t) => [t.d, t.html.replace(/<[^>]+>/g, ' ').trim()]),
+  [FIN_GENERIQUE, 'Post-générique']];
+for (const [d, nom] of REPERES) {
+  const r = document.createElement('i');
+  r.style.left = `${((d + OUVERTURE) / TOTAL * 100).toFixed(2)}%`;
+  r.title = nom;
+  el.chapitres?.appendChild(r);
+}
 for (const t of TEXTES) {
   const div = document.createElement('div');
   div.className = `texte ${t.type}`;
@@ -702,12 +941,25 @@ for (const t of TEXTES) {
   el.textes.appendChild(div);
   t.el = div;
   t.affiche = -1;
+  t.k = -1;
+  t.anime = /titre|chapitre|suite/.test(t.type); // titres animés (variable CSS --k : 0 → 1)
+  if (t.voix) {
+    // texte dit = texte affiché (sans le nom du personnage, sauf direQui)
+    const copie = div.cloneNode(true);
+    if (!t.direQui) copie.querySelector('.qui')?.remove();
+    for (const br of copie.querySelectorAll('br')) br.replaceWith(' ');
+    t.dit = copie.textContent.replace(/\s+/g, ' ').trim();
+  }
+  t.dite = false;
 }
 
 // Fondus au noir : [début, fin, opacité de départ, opacité d'arrivée]
 const FONDUS = [
+  [-OUVERTURE, -OUVERTURE + 0.35, 1, 0],
+  [-2.9, 0, 1, 1],          // coupe sèche au noir après l'accroche
   [0, 1.5, 1, 0], [15.1, 16, 0, 1], [16, 16.8, 1, 0], [35.2, 36, 0, 1], [36, 36.8, 1, 0],
-  [97.2, 98, 0, 1], [98, 98.8, 1, 0], [106.8, DEBUT_GENERIQUE, 0, 1], [DEBUT_GENERIQUE, DUREE + 10, 1, 1],
+  [97.2, 98, 0, 1], [98, 98.8, 1, 0], [107.0, DEBUT_GENERIQUE, 0, 1], [DEBUT_GENERIQUE, FIN_GENERIQUE, 1, 1],
+  [FIN_GENERIQUE, FIN_GENERIQUE + 1.2, 1, 0], [DUREE - 1.4, DUREE, 0, 1], [DUREE, DUREE + 10, 1, 1],
 ];
 function opaciteNoir(T) {
   for (const [a, b, de, vers] of FONDUS) if (T >= a && T < b) return de + (vers - de) * lisse((T - a) / (b - a));
@@ -718,34 +970,60 @@ function opaciteNoir(T) {
 // Lecture
 // ============================================================================================
 let etat = 'accueil'; // accueil | lecture | pause | fin
-let T = 0;
+let T = -OUVERTURE;
 let prochaineCue = 0;
 let planCourant = null;
 let secousse = 0;
 let musique = null;
 let muet = false;
+let sonActif = true; // false : film lancé sans son (capture vidéo)
 
-function reinitialiser() {
+// Voix : la musique baisse automatiquement pendant que la voix parle (ducking)
+const voix = new Voix({
+  onParle(oui) { musique?.baisser(oui); },
+  onChange: () => majBoutons(),
+});
+majBoutons();
+
+/** Vide la scène (acteurs, tirs, effets, tempête) : au départ, et à la fin de l'accroche. */
+function nettoyerScene() {
   for (const a of acteurs) a.e.detruire();
   acteurs.length = 0;
   heros = s1 = s2 = s3 = t1 = t2 = mech = null;
+  armee.length = 0;
   for (const b of bolts) { b.actif = false; b.mesh.visible = false; }
   etatGrenade.actif = false;
   grenade.visible = false;
   etatBoule.t = 9;
   effets.vider();
   tempete.reinitialiser();
+  el.eclair.style.opacity = '0';
+  epave.actif = false;
+  lumiereEnnemi.intensity = 0;
+  lumiereTir.intensity = 0;
+  for (const f of fumeesEpave) f.visible = false;
+  bouclier = 100;
+}
+
+function reinitialiser() {
+  nettoyerScene();
   armes.support.visible = false;
-  T = 0;
+  T = -OUVERTURE;
   prochaineCue = 0;
   planCourant = null;
   secousse = 0;
-  for (const t of TEXTES) { t.affiche = -1; t.el.style.opacity = '0'; }
+  for (const t of TEXTES) { t.affiche = -1; t.k = -1; t.dite = false; t.el.style.opacity = '0'; }
+  signal.visible = false;
+  hudAffiche = '';
+  voix.annuler();
   el.generique.style.visibility = 'hidden';
   musique?.reinitialiser();
 }
 
 function lancer({ son = true } = {}) {
+  sonActif = son;
+  // appelé pendant le clic : autorise la parole sur iOS / Android
+  if (son && !muet) voix.debloquer();
   if (son) {
     initAudio();
     const audio = contexteAudio();
@@ -767,6 +1045,7 @@ function pause(oui) {
   etat = oui ? 'pause' : 'lecture';
   const audio = contexteAudio();
   if (audio) (oui ? audio.ctx.suspend() : audio.ctx.resume()).catch(() => {});
+  if (oui) voix.pause(); else voix.reprendre();
   majBoutons();
   montrerControles();
   besoinRendu = true;
@@ -774,6 +1053,7 @@ function pause(oui) {
 
 function finir() {
   etat = 'fin';
+  voix.annuler();
   el.fin.classList.remove('cache');
   document.body.classList.remove('en-lecture');
   majBoutons();
@@ -785,6 +1065,16 @@ function majBoutons() {
   el.lecture.setAttribute('aria-label', lecture ? 'Pause' : 'Lecture');
   el.son.textContent = muet ? '🔇' : '🔊';
   el.son.setAttribute('aria-label', muet ? 'Remettre le son' : 'Couper le son');
+  // bouton « voix » : barré si désactivée, caché si le navigateur n'a pas de voix française
+  const dispo = voix.disponible;
+  for (const b of [el.voix, el.voixAccueil]) {
+    if (!b) continue;
+    b.classList.toggle('cache', !dispo);
+    b.classList.toggle('voix-off', !voix.actif);
+    b.setAttribute('aria-pressed', String(voix.actif));
+  }
+  if (el.voixAccueil) el.voixAccueil.textContent = voix.actif ? '🗣 Voix : oui' : '🗣 Voix : non';
+  if (el.voix) el.voix.setAttribute('aria-label', voix.actif ? 'Couper les voix' : 'Activer les voix');
   document.body.classList.toggle('en-pause', etat === 'pause');
 }
 
@@ -805,6 +1095,10 @@ function etape(dtFilm) {
   placerCamera(dtFilm);
   armes.update(dt, joueurFictif);
   majTextes();
+  majVoix();
+  majHud();
+  majEtalonnage(dtFilm);
+  majSignal();
   el.fondu.style.opacity = opaciteNoir(T).toFixed(3);
   majGenerique();
   majProgression();
@@ -844,10 +1138,10 @@ function placerCamera(dt) {
 
 /** Générique de fin : défile de bas en haut, au rythme du temps du film. */
 function majGenerique() {
-  const actif = T >= DEBUT_GENERIQUE;
+  const actif = T >= DEBUT_GENERIQUE && T < FIN_GENERIQUE;
   el.generique.style.visibility = actif ? 'visible' : 'hidden';
   if (!actif) return;
-  const p = Math.min(1, (T - DEBUT_GENERIQUE) / (DUREE - DEBUT_GENERIQUE - 0.4));
+  const p = Math.min(1, (T - DEBUT_GENERIQUE) / (FIN_GENERIQUE - DEBUT_GENERIQUE - 0.3));
   const H = innerHeight, h = el.generique.offsetHeight;
   el.generique.style.transform = `translateY(${(H - p * (H + h)).toFixed(1)}px)`;
 }
@@ -863,17 +1157,99 @@ function majTextes() {
       t.el.style.opacity = String(o);
       t.el.style.visibility = o > 0 ? 'visible' : 'hidden';
     }
+    // titres animés : progression 0 → 1 pendant l'affichage (zoom lent, lettres qui s'écartent, reflet)
+    if (t.anime && o > 0) {
+      const k = Math.round(clamp((T - t.d) / (t.f - t.d), 0, 1) * 400) / 400;
+      if (k !== t.k) { t.k = k; t.el.style.setProperty('--k', String(k)); }
+    }
   }
+}
+
+/** Dit chaque réplique au moment où son sous-titre apparaît (la précédente est coupée). */
+function majVoix() {
+  for (const t of TEXTES) {
+    if (!t.voix || t.dite || T < t.d) continue;
+    t.dite = true;
+    // réplique déjà presque finie (avance rapide) : on ne la dit pas
+    if (T < t.f - 0.4 && etat === 'lecture' && sonActif && !muet) voix.dire(t.voix, t.dit);
+  }
+}
+
+// Étalonnage par scène : teinte (fusion « lumière douce ») + vignette. [début, r, v, b, force, vignette]
+const ETALONNAGE = [
+  [-OUVERTURE, 170, 30, 45, 0.3, 0.85], // accroche : rouge tempête
+  [0, 70, 110, 170, 0.32, 0.5],     // prologue : bleu froid
+  [16, 255, 160, 90, 0.16, 0.5],    // arrivée : soleil chaud
+  [36, 60, 95, 130, 0.34, 0.72],    // embuscade : froid, désaturé
+  [52, 255, 120, 50, 0.22, 0.62],   // combat : orange
+  [67, 170, 30, 45, 0.28, 0.8],     // tempête : rouge sang
+  [83.6, 210, 0, 10, 0.38, 0.98],   // tout semble perdu
+  [85.4, 170, 30, 45, 0.28, 0.8],
+  [98, 255, 190, 120, 0.24, 0.5],   // épilogue : lumière dorée
+  [104.5, 255, 30, 40, 0.3, 0.85],  // le signal : rouge
+  [FIN_GENERIQUE, 150, 30, 50, 0.2, 0.85], // post-générique
+];
+const teinte = [70, 110, 170, 0.32, 0.5];
+let teinteAffichee = '';
+function majEtalonnage(dt) {
+  if (!el.etalonnage) return;
+  let cible = ETALONNAGE[0];
+  for (const e of ETALONNAGE) if (T >= e[0]) cible = e;
+  // fondu de couleur rapide (instantané au premier plan ou pendant un fondu au noir)
+  const f = dt <= 0 || T < -OUVERTURE + 0.1 ? 1 : 1 - Math.exp(-2.5 * dt);
+  for (let i = 0; i < 5; i++) teinte[i] += (cible[i + 1] - teinte[i]) * f;
+  let force = teinte[3];
+  if (T >= 104.5) force += 0.25 * Math.max(0, Math.sin((T - 104.5) * 5.5)); // pulsation
+  const css = `rgba(${teinte[0] | 0},${teinte[1] | 0},${teinte[2] | 0},${force.toFixed(2)})|${teinte[4].toFixed(2)}`;
+  if (css !== teinteAffichee) {
+    teinteAffichee = css;
+    const [c, v] = css.split('|');
+    el.etalonnage.style.setProperty('--teinte', c);
+    el.etalonnage.style.setProperty('--vignette', v);
+  }
+}
+
+/** Interface du film : compte à rebours de la Tempête et bouclier de Varga (enjeux visibles). */
+let hudAffiche = '';
+const DEBUT_COMPTE = 49.6, IMPACT_TEMPETE = 67;
+function majHud() {
+  const compte = T >= DEBUT_COMPTE && T < IMPACT_TEMPETE + 1.5;
+  const combat = (T < -3 && T >= -OUVERTURE) || (T >= 52 && T < 91);
+  const secondes = Math.max(0, Math.ceil(IMPACT_TEMPETE - T));
+  const cle = `${compte ? secondes : '-'}|${combat ? Math.round(bouclier) : '-'}`;
+  if (cle === hudAffiche) return;
+  hudAffiche = cle;
+  el.compte.classList.toggle('visible', compte);
+  el.compte.classList.toggle('urgent', compte && secondes <= 5);
+  el.compteValeur.textContent = secondes > 0 ? `0:${String(secondes).padStart(2, '0')}` : 'IMPACT';
+  el.bouclier.classList.toggle('visible', combat);
+  el.bouclier.classList.toggle('critique', bouclier < 30);
+  el.bouclierBarre.style.transform = `scaleX(${(bouclier / 100).toFixed(2)})`;
+  el.bouclierValeur.textContent = `${Math.round(bouclier)} %`;
+}
+
+/** Fin : un signal rouge s'allume au sommet de la Mégastructure et bat comme un cœur. */
+function majSignal() {
+  const k = T - 104.5;
+  signal.visible = (k > 0 && T < DEBUT_GENERIQUE) || T >= FIN_GENERIQUE;
+  if (!signal.visible) return;
+  const pouls = Math.max(0, Math.sin(k * 5.5)) ** 2;
+  signal.position.set(HAUT_MEGA[0], HAUT_MEGA[1] + 8, HAUT_MEGA[2]);
+  signal.scale.setScalar(90 + pouls * 70 + Math.min(1, k) * 40);
+  signal.material.opacity = Math.min(1, k * 2) * (0.55 + pouls * 0.45);
 }
 
 const format = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 let secondeAffichee = -1;
 function majProgression() {
-  el.barre.style.transform = `scaleX(${Math.min(1, T / DUREE).toFixed(4)})`;
-  const s = Math.floor(T);
+  const ecoule = T + OUVERTURE; // temps vu par le spectateur (0 → TOTAL)
+  const k = Math.min(1, ecoule / TOTAL).toFixed(4);
+  el.barre.style.transform = `scaleX(${k})`;
+  el.mini?.style.setProperty('transform', `scaleX(${k})`);
+  const s = Math.floor(ecoule);
   if (s !== secondeAffichee) {
     secondeAffichee = s;
-    el.temps.textContent = `${format(Math.min(T, DUREE))} / ${format(DUREE)}`;
+    el.temps.textContent = `${format(Math.min(ecoule, TOTAL))} / ${format(TOTAL)}`;
   }
 }
 
@@ -951,6 +1327,7 @@ if (!document.fullscreenEnabled) el.plein.classList.add('cache');
 
 function basculerSon() {
   muet = !muet;
+  if (muet) voix.annuler();
   const audio = contexteAudio();
   if (audio) audio.maitre.gain.value = muet ? 0 : 0.45;
   majBoutons();
@@ -967,6 +1344,8 @@ el.lecture.addEventListener('click', () => {
 });
 el.recommencer.addEventListener('click', () => lancer());
 el.son.addEventListener('click', basculerSon);
+el.voix?.addEventListener('click', () => voix.basculer());
+el.voixAccueil?.addEventListener('click', () => voix.basculer());
 el.plein.addEventListener('click', basculerPleinEcran);
 
 // Toucher / souris sur l'image : affiche les commandes (au tactile) ou met en pause (clic souris)
@@ -989,6 +1368,7 @@ addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyR' && etat !== 'accueil') lancer();
   else if (e.code === 'KeyF') basculerPleinEcran();
   else if (e.code === 'KeyM') basculerSon();
+  else if (e.code === 'KeyV') voix.basculer();
   else return;
   montrerControles();
 });
@@ -1009,7 +1389,12 @@ if (DEBUG || CAPTURE) {
     get etat() { return etat; },
     get acteurs() { return acteurs.map((a) => ({ type: a.e.type, mort: a.e.mort, x: a.e.position.x, z: a.e.position.z })); },
     get plan() { return PLANS.indexOf(planCourant); },
-    lancer, pause, scene, camera, renderer, tempete, qualite, contexteAudio,
+    lancer, pause, scene, camera, renderer, tempete, qualite, contexteAudio, voix,
+    /** Répliques dites à voix haute : [début, fin, personnage, texte]. */
+    get duree() { return DUREE; },
+    get debut() { return -OUVERTURE; },
+    get bouclier() { return bouclier; },
+    get repliques() { return TEXTES.filter((t) => t.voix).map((t) => [t.d, t.f, t.voix, t.dit]); },
     pret: () => !el.lancer.disabled,
     set rendu(oui) { rendu = oui; },
     /** (enregistrement du son) delta maximal plus large : le film suit exactement l'horloge. */

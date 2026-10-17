@@ -24,6 +24,16 @@
     html, body { background: #000; }
     #scene canvas { position: fixed; left: 0; top: 0; display: block; }
     #fondu { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; }
+    /* Étalonnage : teinte par scène (lumière douce) + vignette, posés sur l'image */
+    #etalonnage { position: fixed; inset: 0; pointer-events: none; --teinte: rgba(70,110,170,0.3); --vignette: 0.5; }
+    #etalonnage::before, #etalonnage::after { content: ''; position: absolute; inset: 0; }
+    #etalonnage::before { background: var(--teinte); mix-blend-mode: soft-light; }
+    #etalonnage::after {
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0) 48%, rgba(0,0,0,0.95) 115%);
+      opacity: var(--vignette);
+    }
+    /* téléphone : pas de fusion « lumière douce » (coûteuse), simple voile coloré très léger */
+    body.tactile #etalonnage::before { mix-blend-mode: normal; opacity: 0.22; }
     #eclair { position: fixed; inset: 0; background: #ffd6e6; opacity: 0; pointer-events: none; mix-blend-mode: screen; }
 
     /* ---------- Textes du film ---------- */
@@ -39,10 +49,21 @@
     }
     .texte.narration.bas { top: 64%; }
     .texte.narration .petit { font-size: 0.7em; color: var(--orange-2); letter-spacing: 4px; }
-    .texte.titre { top: 50%; transform: translate(-50%, -50%); display: grid; justify-items: center; }
+    .texte.titre {
+      top: 50%; display: grid; justify-items: center; --k: 0;
+      transform: translate(-50%, -50%) scale(calc(1.1 - var(--k) * 0.1));
+    }
+    .texte.titre .nexus { letter-spacing: calc(4px + var(--k) * 10px); }
+    /* reflet métallique qui balaie le titre */
+    .texte.titre h1 { position: relative; }
+    .texte.titre h1::after {
+      content: ''; position: absolute; inset: -10% -20%; pointer-events: none; mix-blend-mode: overlay;
+      background: linear-gradient(100deg, transparent 40%, rgba(255,255,255,0.85) 50%, transparent 60%);
+      transform: translateX(calc(-60% + var(--k) * 140%)); opacity: calc(1 - var(--k));
+    }
     .texte.titre h1 { margin: 4px 0 0; display: grid; justify-items: center; line-height: 0.92; }
     .texte.titre .nexus {
-      font-size: clamp(54px, 11vw, 132px); font-weight: 800; letter-spacing: 8px;
+      font-size: clamp(54px, 11vw, 132px); font-weight: 800;
       background: linear-gradient(180deg, #f4f6f8 0%, #b3bbc4 46%, #5e656e 52%, #d2d8de 100%);
       -webkit-background-clip: text; background-clip: text; color: transparent;
       filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.8)); text-shadow: none;
@@ -61,6 +82,10 @@
       border-left: 3px solid var(--orange); padding: 3px 0 3px 10px; background: rgba(0, 0, 0, 0.35);
     }
     .texte.chapitre b { color: var(--orange); margin-right: 8px; }
+    .texte.chapitre { --k: 0; clip-path: inset(0 calc(100% - min(1, var(--k) * 6) * 100%) 0 0); letter-spacing: calc(3px + var(--k) * 4px); }
+    .texte.titre .episode { color: #ff6a5a; text-shadow: 0 0 16px rgba(255, 40, 40, 0.7); letter-spacing: calc(4px + var(--k) * 8px); }
+    .texte.replique.radio.alerte { color: #ffc2bc; }
+    .texte.replique.radio.alerte .qui { color: #ff5a4a; }
     .texte.replique {
       bottom: calc(var(--barre, 0px) + 14px); font-size: clamp(16px, 2.2vw, 25px); line-height: 1.35;
     }
@@ -73,6 +98,36 @@
     }
     .texte.replique.radio { font-style: italic; color: #cfe8ff; }
     .texte.replique.radio .qui { color: var(--bleu); }
+    .texte.replique.radio .qui::before { content: '◉ '; }
+
+    /* Enjeux à l'écran : compte à rebours de la Tempête, bouclier de Varga */
+    #hud-film {
+      position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(var(--barre, 0px) + 14px);
+      display: grid; justify-items: end; gap: 8px; pointer-events: none; font-variant-numeric: tabular-nums;
+    }
+    body.grandes-barres #hud-film { top: max(14px, env(safe-area-inset-top, 0px)); }
+    .h-bloc {
+      display: none; align-items: center; gap: 10px; padding: 5px 10px; background: rgba(0, 0, 0, 0.45);
+      border-right: 3px solid var(--orange); font-size: clamp(11px, 1.3vw, 14px); letter-spacing: 3px; color: var(--texte);
+    }
+    .h-bloc.visible { display: flex; }
+    .h-bloc b { font-size: 1.35em; color: #fff; letter-spacing: 1px; min-width: 3.2em; text-align: right; }
+    #h-compte { border-color: #ff4a3a; }
+    #h-compte.urgent b { color: #ff4a3a; animation: clignote 0.5s steps(2) infinite; }
+    #h-bouclier i { display: block; width: clamp(70px, 10vw, 130px); height: 7px; background: rgba(255, 255, 255, 0.15); }
+    #h-bouclier em { display: block; height: 100%; background: #5ac8ff; transform-origin: left; transition: transform 0.25s; }
+    #h-bouclier.critique { border-color: #ff4a3a; }
+    #h-bouclier.critique em { background: #ff4a3a; }
+    #h-bouclier.critique { animation: clignote 0.6s steps(2) infinite; }
+    @keyframes clignote { 50% { opacity: 0.45; } }
+
+    /* Barre de progression discrète, toujours visible, avec les chapitres */
+    #mini { position: fixed; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, 0.08); pointer-events: none; display: none; }
+    body.en-lecture #mini, body.en-pause #mini { display: block; }
+    body.capture #mini { display: none !important; }
+    #mini-barre { height: 100%; background: rgba(255, 122, 30, 0.7); transform-origin: left; transform: scaleX(0); }
+    #c-progression { position: relative; }
+    #c-chapitres i { position: absolute; top: -3px; width: 2px; height: 10px; background: #fff; opacity: 0.75; }
 
     /* Générique de fin */
     #generique {
@@ -99,6 +154,8 @@
     }
     .lien-bouton:hover, .lien-bouton:focus-visible { background: rgba(255, 122, 30, 0.18); }
     #btn-lancer:disabled { opacity: 0.6; }
+    .voix-off { opacity: 0.55; text-decoration: line-through; }
+    #btn-voix { font-size: 14px; padding: 10px 18px; min-height: 44px; }
     .boutons-film { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
     #conseil-portrait { display: none; font-size: 13px; color: var(--orange-2); margin: 0; }
     body.portrait.tactile #conseil-portrait { display: block; }
@@ -166,10 +223,16 @@
   </svg>
 
   <div id="scene"></div>
+  <div id="etalonnage"></div>
   <div id="eclair"></div>
   <div id="fondu"></div>
   <div id="textes" aria-live="polite"></div>
   <div id="indicateur-pause">PAUSE</div>
+  <div id="hud-film" aria-hidden="true">
+    <div id="h-compte" class="h-bloc">TEMPÊTE NEXUS · IMPACT <b id="h-compte-valeur">0:17</b></div>
+    <div id="h-bouclier" class="h-bloc">BOUCLIER <i><em id="h-bouclier-barre"></em></i> <b id="h-bouclier-valeur">100 %</b></div>
+  </div>
+  <div id="mini"><div id="mini-barre"></div></div>
 
   <div id="generique" aria-hidden="true">
     <h2>NEXUS <span>FRONTIER</span> — le film</h2>
@@ -181,6 +244,8 @@
     <div class="nom">L'avant-poste Nexus et la Mégastructure, tirés du jeu</div>
     <div class="role">Images</div>
     <div class="nom">Calculées en direct dans ton navigateur (Three.js)</div>
+    <div class="role">Voix</div>
+    <div class="nom">Synthèse vocale de ton appareil, en français</div>
     <div class="role">Musique et sons</div>
     <div class="nom">Synthétisés en direct (Web Audio)</div>
     <div class="role">Modèles 3D des soldats et des armes</div>
@@ -197,29 +262,30 @@
         <h1><span class="nexus">NEXUS</span><span class="frontier">FRONTIER</span></h1>
         <p class="sous-titre">Le film</p>
       </div>
-      <p class="synopsis">L'avant-poste Nexus ne répond plus depuis trois jours. L'éclaireuse <strong>Kaï Varga</strong>
-        part seule au pied de la Mégastructure… mais le silence cache une embuscade, et la
-        <strong>Tempête Nexus</strong> approche.</p>
-      <p class="infos">Court-métrage 3D · 2 min · son conseillé</p>
+      <p class="synopsis">L'avant-poste Nexus ne répond plus depuis trois jours. Seul un <strong>signal inconnu</strong>
+        monte de la Mégastructure. L'éclaireuse <strong>Kaï Varga</strong> part seule… mais le silence cache une
+        embuscade, et la <strong>Tempête Nexus</strong> approche.</p>
+      <p class="infos">Court-métrage 3D · 2 min 20 · voix et sous-titres en français · son conseillé</p>
       <p id="conseil-portrait">Conseil : tourne ton téléphone en mode paysage pour un plus grand écran.</p>
       <div class="boutons-film">
         <button id="btn-lancer" type="button" disabled>Chargement…</button>
+        <button id="btn-voix" type="button" class="secondaire cache" aria-pressed="true" title="Répliques dites à voix haute (V)">🗣 Voix : oui</button>
         <a class="lien-bouton" href="index.html">Retour au jeu</a>
       </div>
       <p id="chargement" class="note">Préparation des décors et des acteurs…</p>
-      <p class="note note-pc">Pendant le film : <kbd>Espace</kbd> pause · <kbd>R</kbd> recommencer · <kbd>F</kbd> plein écran · <kbd>M</kbd> son</p>
-      <p class="note note-tactile">Touche l'écran pour afficher les commandes (pause, recommencer, plein écran).</p>
+      <p class="note note-pc">Pendant le film : <kbd>Espace</kbd> pause · <kbd>R</kbd> recommencer · <kbd>F</kbd> plein écran · <kbd>M</kbd> son · <kbd>V</kbd> voix</p>
+      <p class="note note-tactile">Touche l'écran pour afficher les commandes (pause, recommencer, son, voix 🗣, plein écran).</p>
     </div>
   </div>
 
   <div id="fin" class="ecran ecran-film cache">
     <div class="panneau">
       <svg class="logo petit"><use href="#logo"/></svg>
-      <h2>À toi de jouer !</h2>
-      <p class="synopsis">Défends à ton tour l'avant-poste Nexus contre les vagues de soldats, les mechs-araignées
-        et la Tempête Nexus.</p>
+      <h2>L'armée arrive. À toi de jouer !</h2>
+      <p class="synopsis">En attendant l'<strong>épisode 2</strong>, défends à ton tour l'avant-poste Nexus contre les vagues
+        de soldats, les mechs-araignées et la Tempête Nexus.</p>
       <div class="boutons-film">
-        <a class="lien-bouton" href="index.html" style="background: linear-gradient(180deg, #ff8a32, #e2620e); color: #fff;">Jouer au jeu</a>
+        <a id="btn-jouer" class="lien-bouton" href="index.html" style="background: linear-gradient(180deg, #ff8a32, #e2620e); color: #fff; font-size: 18px; padding: 14px 34px;">▶ Jouer maintenant</a>
         <button id="btn-revoir" type="button" class="secondaire">Revoir le film</button>
       </div>
       <p class="note"><a class="lien-discret" href="credits.html">Crédits des modèles 3D</a></p>
@@ -227,12 +293,13 @@
   </div>
 
   <div id="controles">
-    <div id="c-progression"><div id="c-barre-remplie"></div></div>
+    <div id="c-progression"><div id="c-barre-remplie"></div><div id="c-chapitres"></div></div>
     <div class="c-ligne">
       <button id="c-lecture" class="c-btn" type="button" aria-label="Pause">❚❚</button>
       <button id="c-recommencer" class="c-btn" type="button" aria-label="Recommencer" title="Recommencer">⟲</button>
       <button id="c-son" class="c-btn" type="button" aria-label="Couper le son">🔊</button>
-      <span id="c-temps">0:00 / 1:58</span>
+      <button id="c-voix" class="c-btn cache" type="button" aria-label="Couper les voix" title="Voix (V)">🗣</button>
+      <span id="c-temps">0:00 / 2:21</span>
       <span class="c-espace"></span>
       <button id="c-plein" class="c-btn" type="button" aria-label="Plein écran" title="Plein écran">⛶</button>
       <a id="c-retour" class="lien-bouton" href="index.html">Retour au jeu</a>

@@ -52,20 +52,26 @@ Si un modèle ne peut pas être chargé, le jeu garde automatiquement ses modèl
 - **App installable (PWA)** : le jeu s'installe sur l'écran d'accueil (iPhone, Android, PC), s'ouvre en plein écran
   et fonctionne **hors ligne** (service worker).
   En Auto, le jeu baisse tout seul la qualité s'il passe sous 40 images/s (choix mémorisé).
-- **🎬 Le film** : un court-métrage 3D de 2 minutes dans l'univers du jeu, à regarder sur
+- **🎬 Le film** : un court-métrage 3D d'environ 2 min 20, avec voix françaises, dans l'univers du jeu, à regarder sur
   https://isatopro521-lgtm.github.io/mon-jeu-3d/film.html (bouton « 🎬 Film » du menu). Voir plus bas.
 
 ### Le film « NEXUS FRONTIER »
 
-Court-métrage d'environ 2 minutes, **calculé en direct** dans le navigateur avec le moteur du jeu
+Court-métrage d'environ 2 min 20, **calculé en direct** dans le navigateur avec le moteur du jeu
 (mêmes décors, mêmes soldats animés, même mech-araignée, même Tempête Nexus) ; la musique et les sons
 sont synthétisés en direct (Web Audio). Aucun fichier vidéo à télécharger.
 
-*Synopsis* : l'avant-poste Nexus ne répond plus depuis trois jours. L'éclaireuse Kaï Varga part seule
-au pied de la Mégastructure… mais le silence cache une embuscade, et la Tempête Nexus approche.
+*Synopsis* : l'avant-poste Nexus ne répond plus depuis trois jours ; seul un signal inconnu monte de la
+Mégastructure. L'éclaireuse Kaï Varga part seule… mais le silence cache une embuscade, et la Tempête Nexus approche.
 
-5 scènes (l'arrivée, l'embuscade, le combat en vue subjective, la tempête et le mech-araignée, l'épilogue),
-bandes noires façon cinéma, fondus, titres et sous-titres en français, ralenti sur l'explosion, générique.
+- **Accroche** : le film s'ouvre sur le combat final (Varga, bouclier à zéro, face au mech), puis « Une heure plus tôt… ».
+- **Voix** : narrateur, Varga et la Base (radio) parlent en français, en même temps que les sous-titres
+  (synthèse vocale de l'appareil, `speechSynthesis` : aucun serveur). La musique baisse quand une voix parle.
+  Sans voix française sur l'appareil, le film reste en sous-titres seuls. Bouton 🗣 / touche `V` pour couper les voix.
+- **Enjeux à l'écran** : compte à rebours de la Tempête et bouclier de Varga ; un mystère (le signal) résolu
+  dans la **scène post-générique**, qui annonce l'épisode 2.
+- 5 chapitres (l'arrivée, l'embuscade, le combat en vue subjective, la tempête et le mech-araignée, l'épilogue),
+  étalonnage par scène, bandes noires façon cinéma, titres animés, ralenti sur l'explosion, générique court.
 
 | Commande | PC | Téléphone / tablette |
 | --- | --- | --- |
@@ -74,6 +80,7 @@ bandes noires façon cinéma, fondus, titres et sous-titres en français, ralent
 | Recommencer | `R` | bouton ⟲ |
 | Plein écran | `F` | bouton ⛶ |
 | Couper le son | `M` | bouton 🔊 |
+| Voix on/off | `V` (ou bouton « 🗣 Voix » de l'accueil) | bouton 🗣 |
 | Revenir au jeu | bouton **Retour au jeu** | bouton **Retour au jeu** |
 
 Paysage conseillé sur téléphone ; en portrait, l'image devient carrée et les sous-titres passent dans les bandes noires.
@@ -282,7 +289,8 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/utils.js` | Collisions, bruit procédural, fusion de géométries |
 | `src/installation.js` | Aide à l'installation de l'app (bannière iPhone, bouton « Installer le jeu ») |
 | `film.html`, `src/film.js` | Le film : scénario (événements, plans de caméra, textes, fondus), acteurs pilotés, lecture |
-| `src/film-musique.js` | Musique et ambiance du film (synthèse Web Audio, partition écrite en temps du film) |
+| `src/film-musique.js` | Musique et ambiance du film (synthèse Web Audio, partition écrite en temps du film, baisse pendant les voix) |
+| `src/film-voix.js` | Voix du film : répliques dites par la synthèse vocale du navigateur (voix fr, timbre par personnage) |
 | `src/partage.js` | Partage du jeu, liens de défi `?defi=…&nom=…`, bandeau et résultat du défi |
 | `robots.txt`, `sitemap.xml` | Référencement par les moteurs de recherche |
 | `PUBLIER-ITCH.md` | Textes et étapes pour publier sur itch.io et faire connaître le jeu |

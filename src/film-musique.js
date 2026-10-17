@@ -14,30 +14,81 @@ const THEME = [69, 72, 76, 74, 72, 71, 72, 69, 67, 69, 71, 72, 74, 76, 72, 69];
 
 // Sections : début, fin (s), tempo, fonction appelée à chaque temps (i = numéro du temps, te = instant)
 const SECTIONS = [
+  { d: -12, f: -2.95, bpm: 132, fn: ouverture },    // accroche (temps négatifs) : coupée net au noir
+  { d: -2.6, f: 0, bpm: 60, fn: retourArriere },
   { d: 0, f: 16, bpm: 60, fn: prologue },
   { d: 16, f: 36, bpm: 80, fn: arrivee },
   { d: 36, f: 52, bpm: 70, fn: tension },
   { d: 52, f: 86.1, bpm: 128, fn: combat },
   { d: 86.1, f: 98, bpm: 64, fn: apres },
-  { d: 98, f: 118, bpm: 72, fn: epilogue },
+  { d: 98, f: 116, bpm: 72, fn: epilogue },
+  { d: 116, f: 129, bpm: 62, fn: menace },           // post-générique : l'armée se réveille
 ];
 
 // Événements ponctuels : [instant, fonction]
 const PONCTUELS = [
+  [-12, (m, te) => m.impact(te, 0.9)],                // accroche : on entre en plein combat
+  [-11.9, (m, te) => m.radio(te)],
+  [-3.6, (m, te) => m.impact(te, 0.8)],               // le coup du mech…
+  [-2.95, (m, te) => m.coupure(te)],                  // … et coupe sèche sur le son
   [9, (m, te) => m.impact(te, 0.5)],                  // titre
-  [21.4, (m, te) => m.radio(te)],
-  [25.9, (m, te) => m.radio(te)],
-  [47, (m, te) => m.radio(te)],
+  [21.4, (m, te) => m.radio(te)],                     // grésillement avant chaque réplique radio
+  [25.7, (m, te) => m.radio(te)],
+  [46.4, (m, te) => m.radio(te)],
   [49, (m, te) => m.montee(te, 3, 0.18)],             // juste avant le combat
+  [49.4, (m, te) => m.radio(te)],
   [52, (m, te) => m.impact(te, 0.6)],
   [64.5, (m, te) => m.montee(te, 2.5, 0.08)],
   [67.2, (m, te) => m.impact(te, 0.8)],               // arrivée du mech
+  [67.6, (m, te) => m.radio(te)],
+  [81.2, (m, te) => m.radio(te)],
+  [83.6, (m, te) => m.impact(te, 0.7)],               // tout semble perdu
   [84, (m, te) => m.montee(te, 2.1, 0.2)],
   [86.1, (m, te) => m.impact(te, 1)],                 // explosion
-  [91.9, (m, te) => m.radio(te)],
+  [91.8, (m, te) => m.radio(te)],
   [98.4, (m, te) => m.radio(te)],
-  [115.5, (m, te) => m.fondu(te, 2.5)],               // fin du générique
+  [104.6, (m, te) => { m.impact(te, 0.9); m.nappe(te, [45, 46, 57], 3.4, 0.12, 650); }], // le signal inconnu
+  [104.7, (m, te) => m.radio(te)],
+  [121, (m, te) => m.impact(te, 1)],                  // « … un appel aux armes. »
+  [123.9, (m, te) => m.impact(te, 0.7)],              // titre de l'épisode 2
+  [127.4, (m, te) => m.fondu(te, 1.6)],               // fin
 ];
+
+/** Accroche : combat à pleine puissance (batterie, basse, cuivres). */
+function ouverture(m, i, te) {
+  const b = 60 / 132;
+  const temps = i % 4;
+  const accord = [LAm, FA, SOL, LAm][Math.floor(i / 4) % 4];
+  const r = RACINE.get(accord) - 12;
+  m.grosseCaisse(te, 0.5);
+  if (temps % 2 === 1) m.caisseClaire(te, 0.34);
+  m.charleston(te + b / 2, 0.06);
+  m.basse(te, r, b * 0.45, 0.15);
+  m.basse(te + b / 2, r + (temps === 3 ? 7 : 12), b * 0.45, 0.12);
+  if (temps === 0) {
+    m.nappe(te, accord, b * 4 + 0.1, 0.07, 2400);
+    m.cuivre(te, accord, 0.4, 0.08);
+  }
+  if (te > -4.4 && temps === 2) m.cuivre(te, accord, 0.3, 0.08);
+}
+
+/** « Une heure plus tôt… » : un battement grave dans le noir. */
+function retourArriere(m, i, te) {
+  if (i === 0) m.nappe(te, [45, 52], 2.8, 0.08, 500);
+  m.grosseCaisse(te, 0.22);
+}
+
+/** Post-générique : nappe dissonante, battement lourd, cloche aiguë. */
+function menace(m, i, te) {
+  if (te > 127.4) return;
+  if (i % 4 === 0) {
+    m.nappe(te, [45, 46, 57], 4, 0.1, 600);
+    m.basse(te, 33, 3.8, 0.12);
+  }
+  m.grosseCaisse(te, i >= 5 ? 0.42 : 0.3);
+  if (i >= 5) m.grosseCaisse(te + 0.24, 0.2);
+  if (i % 2 === 1) m.cloche(te, 82, 0.02);
+}
 
 function prologue(m, i, te) {
   const accord = [LAm, FA, DO, SOL][Math.floor(i / 4) % 4];
@@ -76,6 +127,11 @@ function tension(m, i, te) {
 
 function combat(m, i, te) {
   if (te > 85.55) return; // silence avant l'explosion
+  // tout semble perdu : la musique tombe, il ne reste que le cœur
+  if (te > 83.65) {
+    if (i % 2 === 0) { m.grosseCaisse(te, 0.4); m.grosseCaisse(te + 0.2, 0.22); }
+    return;
+  }
   const b = 60 / 128;
   const mesure = Math.floor(i / 4), temps = i % 4;
   const accord = [LAm, LAm, FA, SOL][mesure % 4];
@@ -162,7 +218,8 @@ export class Musique {
     this.musique.gain.value = 0.85;
     this.musique.connect(comp).connect(this.bus);
     this.bus.connect(this.sortie);
-    this.jusque = 0;
+    this.jusque = -1e9; // le film commence à un temps négatif (accroche)
+    this.baissee = false;
     this.prochainPonctuel = 0;
     this.niveauVent = -1;
     this.niveauPluie = -1;
@@ -219,7 +276,7 @@ export class Musique {
       this.jusque = fin;
     }
     // ambiance
-    const vent = T < 52 ? 0.07 : T < 98 ? 0.03 : T < 108 ? 0.05 : 0;
+    const vent = (T < -2.95 ? 0.03 : T < 52 ? 0.07 : T < 98 ? 0.03 : T < 108 ? 0.05 : 0) * (this.baissee ? 0.5 : 1);
     if (Math.abs(vent - this.niveauVent) > 0.001) {
       this.niveauVent = vent;
       this.vent.gain.gain.setTargetAtTime(vent, this.ctx.currentTime, 0.6);
@@ -422,6 +479,27 @@ export class Musique {
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
     g.connect(this.bus);
     this.osc('square', 1250, t, 0.09, g);
+  }
+
+  /** Ducking : la musique et le vent baissent pendant que la voix parle. */
+  baisser(oui) {
+    const t = this.ctx.currentTime;
+    this.baissee = oui;
+    this.musique.gain.cancelScheduledValues(t);
+    this.musique.gain.setTargetAtTime(oui ? 0.32 : 0.85, t, oui ? 0.08 : 0.35);
+    this.niveauVent = -1; // recalcule le vent à la prochaine image
+  }
+
+  /** Coupe sèche : la musique s'arrête net (fin de l'accroche), puis revient. */
+  coupure(te) {
+    const t = this.quand(te);
+    if (t === null) return;
+    const g = this.musique.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0.0001, t + 0.03);
+    g.setValueAtTime(0.0001, t + 0.35);
+    g.linearRampToValueAtTime(this.baissee ? 0.32 : 0.85, t + 0.6);
   }
 
   /** Fondu de sortie de tout le bus (fin du générique). */
