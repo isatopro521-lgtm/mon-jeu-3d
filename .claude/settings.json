@@ -16,7 +16,30 @@
       "Bash(ls *)",
       "Bash(cat *)",
       "Bash(grep *)",
-      "Bash(curl -s http://localhost*)"
+      "Bash(curl -s http://localhost*)",
+      "Edit(sw.js)",
+      "Edit(CLAUDE.md)",
+      "Edit(scripts/**)",
+      "Bash(bash scripts/verifier-sw.sh)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push -u origin claude/*)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(git branch *)",
+      "mcp__github__create_pull_request",
+      "mcp__github__merge_pull_request",
+      "mcp__github__pull_request_read",
+      "mcp__github__list_pull_requests",
+      "mcp__github__actions_list",
+      "mcp__github__actions_get",
+      "mcp__github__get_job_logs"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)"
     ]
   }
 }
