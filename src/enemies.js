@@ -29,6 +29,14 @@ const LIMITE = DEMI_ARENE - 1;
 const VITESSE_PROJECTILE = 20;
 const DUREE_APPARITION = 0.5;
 const DUREE_ARMEMENT = 0.4;                          // temps avant que le coup au corps à corps ne porte
+const DUREE_RECUL = 0.28;                            // sursaut quand l'ennemi est touché
+const DUREE_ESQUIVE = 0.35;                          // pas de côté après une touche
+const CHANCE_ESQUIVE = 0.35;
+const DUREE_CHUTE = 0.75;                            // mort : chute…
+const DEBUT_FONDU = 1.25;                            // …puis le corps reste au sol…
+const DUREE_FONDU = 0.75;                            // …et se dissout en particules
+const DUREE_ICONE = 1.1;                             // icône « ! » au-dessus de la tête à l'alerte
+const COU_Y = 1.62, HANCHES_Y = 0.95;                // pivots du soldat (tête, haut du corps)
 
 // ---------- Modèles ----------
 // Chaque partie animée est un seul maillage (pièces fusionnées, couleurs de sommets) :
@@ -41,6 +49,26 @@ const matVisieres = {};
 function matVisiere(couleur) {
   return (matVisieres[couleur] ??= new THREE.MeshBasicMaterial({ color: couleur }));
 }
+const matVisiereFlash = new THREE.MeshBasicMaterial({ color: 0xffffff }); // éclair d'alerte
+
+// Icône « ! » d'alerte (texture dessinée une fois, matériau partagé par tous les ennemis)
+const matIcone = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = '#ffcf33';
+  x.strokeStyle = '#1a1206';
+  x.lineWidth = 5;
+  x.beginPath();
+  x.moveTo(32, 4); x.lineTo(60, 58); x.lineTo(4, 58); x.closePath();
+  x.fill(); x.stroke();
+  x.fillStyle = '#1a1206';
+  x.fillRect(28, 20, 8, 22);
+  x.fillRect(28, 46, 8, 7);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.SpriteMaterial({ map: tex, depthWrite: false, fog: false });
+})();
 
 function geo(fn, couleurs = true) {
   const asm = new Assemblage();
@@ -160,15 +188,26 @@ const geosMech = (() => {
 /** Soldat tactique : torse, tête (zone de tir à la tête), visière lumineuse, bras, jambes, arme. */
 function construireSoldat(e, g, t) {
   const G = geosSoldat(t);
+  // Pivots : « haut » (hanches) porte le torse, les bras et le cou ; « cou » porte la tête.
+  // Les géométries sont en coordonnées absolues : on décale les maillages de -hauteur du pivot.
+  e.haut = new THREE.Group();
+  e.haut.position.y = HANCHES_Y;
+  e.cou = new THREE.Group();
+  e.cou.position.y = COU_Y - HANCHES_Y;
+  e.cou.rotation.order = 'YXZ';
   const torse = new THREE.Mesh(G.torse, e.mat);
+  torse.position.y = -HANCHES_Y;
   const tete = new THREE.Mesh(G.tete, e.mat);
   const visiere = new THREE.Mesh(G.visiere, matVisiere(t.visiere));
+  tete.position.y = visiere.position.y = -COU_Y;
   tete.userData.tete = visiere.userData.tete = true;
-  g.add(torse, tete, visiere);
+  e.cou.add(tete, visiere);
+  e.haut.add(torse, e.cou);
+  g.add(e.haut);
   e.bras = [-1, 1].map((s) => {
     const b = new THREE.Mesh(s > 0 ? G.brasArme : G.bras, e.mat);
-    b.position.set(s * 0.3, 1.5, 0.02);
-    g.add(b);
+    b.position.set(s * 0.3, 1.5 - HANCHES_Y, 0.02);
+    e.haut.add(b);
     return b;
   });
   e.jambes = [-1, 1].map((s) => {
@@ -265,6 +304,19 @@ class Ennemi {
     this.mortTimer = 0;
     this.aSupprimer = false;
 
+    // Petites différences entre individus : ils ne bougent pas tous en même temps
+    this.echelle = t.echelle * (0.95 + Math.random() * 0.1);
+    this.tempo = 0.88 + Math.random() * 0.24;       // cadence de marche et de respiration
+    this.allurePatrouille = 0.35 + Math.random() * 0.2;
+    this.temps = Math.random() * 100;               // horloge propre (respiration, regards)
+    this.pause = 0;                                 // pause en patrouille (regarde autour)
+    this.regardTete = 0; this.penchTete = 0;        // orientation actuelle de la tête
+    this.recul = 0; this.reculCote = 0;             // sursaut quand touché
+    this.esquive = 0; this.esquiveSens = 1; this.esquiveAttente = 0;
+    this.flashVisiere = 0;
+    this.icone = 0;
+    this.chuteAvant = false; this.chuteCote = 0; this.etincelleMort = 0;
+
     // Modèle (un matériau par ennemi : flash de touche et fondu à la mort)
     this.mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35 });
     const g = new THREE.Group();
@@ -277,11 +329,26 @@ class Ennemi {
     g.rotation.y = this.angle;
     scene.add(g);
     this.groupe = g;
+    this.matLumineux = this.lumineux[0].material;
+
+    // Icône d'alerte : hors du groupe pour ne pas gêner le tir (raycast)
+    this.sprite = new THREE.Sprite(matIcone);
+    this.sprite.visible = false;
+    scene.add(this.sprite);
+  }
+
+  /** Réaction visible et sonore quand l'ennemi repère le joueur. */
+  alerter() {
+    this.icone = DUREE_ICONE;
+    this.flashVisiere = 0.35;
+    this.pause = 0;
+    if (!this.pattes) { this.recul = Math.max(this.recul, DUREE_RECUL * 0.6); this.reculCote = 0; } // léger sursaut
+    sons.alerte(!!this.pattes);
   }
 
   choisirPatrouille() {
     this.cible.set((Math.random() - 0.5) * 30, 0, (Math.random() - 0.5) * 30);
-    this.timer = 6;
+    this.timer = 6 + Math.random() * 3;
   }
 
   ligneDeVue(joueur, dist, obstacles) {
@@ -298,23 +365,40 @@ class Ennemi {
   toucher(degats, direction) {
     if (this.mort) return null;
     this.vie -= degats;
-    this.flash = 0.08;
+    this.flash = 0.12;
     this.vel.x += direction.x * 3 / this.t.taille;
     this.vel.z += direction.z * 3 / this.t.taille;
     if (this.etat === 'patrouille' || this.etat === 'alerte') this.provoque = true;
     if (this.vie <= 0) {
-      this.mourir();
+      this.mourir(direction);
       return { mort: true, points: this.t.points };
+    }
+    // Sursaut : le haut du corps part dans le sens du coup (côté selon l'impact)
+    this.recul = DUREE_RECUL;
+    const cos = Math.cos(this.angle), sin = Math.sin(this.angle);
+    this.reculCote = clamp(direction.x * cos - direction.z * sin, -1, 1);
+    sons.douleur(!!this.pattes);
+    // Les fantassins font parfois un pas de côté pour sortir de la ligne de tir
+    if (!this.pattes && this.esquiveAttente <= 0 && this.etat !== 'attaque' && Math.random() < CHANCE_ESQUIVE) {
+      this.esquive = DUREE_ESQUIVE;
+      this.esquiveSens = Math.random() < 0.5 ? 1 : -1;
+      this.esquiveAttente = 1.5 + Math.random();
     }
     return { mort: false, points: 0 };
   }
 
-  mourir() {
+  mourir(direction) {
     this.mort = true;
     this.mortTimer = 0;
     this.mat.transparent = true;
     this.mat.emissive.setScalar(0);
-    for (const o of this.lumineux) o.visible = false;
+    this.sprite.visible = false;
+    this.lumineux[0].material = this.matLumineux;
+    // Chute vers l'avant si touché dans le dos, sinon en arrière ; un peu de côté au hasard
+    const avant = Math.sin(this.angle) * direction.x + Math.cos(this.angle) * direction.z;
+    this.chuteAvant = avant > 0.3;
+    this.chuteCote = (Math.random() - 0.5) * 0.6;
+    sons.criMort(!!this.pattes);
   }
 
   entendre(position, portee) {
@@ -326,32 +410,18 @@ class Ennemi {
     const g = this.groupe;
 
     if (this.mort) {
-      this.mortTimer += dt;
-      const p = Math.min(1, this.mortTimer / 0.45);
-      if (this.pattes) {
-        // le mech s'effondre : pattes écartées, châssis au sol, légère bascule
-        for (const patte of this.pattes) {
-          patte.hanche.rotation.z = p * 0.7;
-          patte.genou.rotation.z = -p * 0.9;
-        }
-        this.chassis.position.y = -p * p * 1.0;
-        this.chassis.rotation.z = p * 0.15;
-        this.chassis.rotation.x = -p * 0.1;
-      } else {
-        g.rotation.x = -p * p * Math.PI / 2;
-      }
-      g.position.y = -Math.max(0, this.mortTimer - 0.8) * 0.8;
-      this.mat.opacity = 1 - clamp((this.mortTimer - 0.7) / 0.6, 0, 1);
-      if (this.mortTimer > 1.3) this.aSupprimer = true;
+      this.animerMort(dt, c);
       return;
     }
 
     if (this.apparition > 0) {
       this.apparition -= dt;
       const s = 1 - Math.max(0, this.apparition) / DUREE_APPARITION;
-      g.scale.setScalar(this.t.echelle * Math.max(0.01, s));
+      g.scale.setScalar(this.echelle * Math.max(0.01, s));
       return;
     }
+    this.temps += dt;
+    this.esquiveAttente -= dt;
 
     const j = c.joueur;
     _vers.set(j.position.x - this.position.x, 0, j.position.z - this.position.z);
@@ -368,7 +438,7 @@ class Ennemi {
     if (this.provoque) {
       this.provoque = false;
       this.dernierePos.copy(j.position);
-      if (this.etat === 'patrouille') { this.etat = 'alerte'; this.timer = 0.3; }
+      if (this.etat === 'patrouille') { this.etat = 'alerte'; this.timer = 0.3; this.alerter(); }
     }
 
     let dx = 0, dz = 0, vitesse = 0;
@@ -376,16 +446,25 @@ class Ennemi {
 
     switch (this.etat) {
       case 'patrouille': {
-        _v.set(this.cible.x - this.position.x, 0, this.cible.z - this.position.z);
-        const d = _v.length();
-        this.timer -= dt;
-        if (d < 1 || this.timer <= 0) this.choisirPatrouille();
-        else { dx = _v.x / d; dz = _v.z / d; vitesse = this.vitesseMax * 0.45; }
+        if (this.pause > 0) {
+          // petite pause : il reste sur place et regarde autour de lui
+          this.pause -= dt;
+          if (this.pause <= 0) this.choisirPatrouille();
+        } else {
+          _v.set(this.cible.x - this.position.x, 0, this.cible.z - this.position.z);
+          const d = _v.length();
+          this.timer -= dt;
+          if (d < 1 || this.timer <= 0) {
+            if (Math.random() < 0.65) this.pause = 1.2 + Math.random() * 2.3;
+            else this.choisirPatrouille();
+          } else { dx = _v.x / d; dz = _v.z / d; vitesse = this.vitesseMax * this.allurePatrouille; }
+        }
         const face = Math.sin(this.angle) * _vers.x + Math.cos(this.angle) * _vers.z;
         if ((this.voit && face > CHAMP_COS) || dist < OUIE) {
           this.etat = 'alerte';
           this.timer = 0.4;
           this.dernierePos.copy(j.position);
+          this.alerter();
         }
         break;
       }
@@ -433,7 +512,16 @@ class Ennemi {
           // Corps à corps : fonce sur le joueur
           const vise = this.voit ? _vers : _v;
           const d = this.voit ? dist : dCible;
-          if (d > this.t.portee * 0.7) { dx = vise.x; dz = vise.z; vitesse = this.vitesseMax; }
+          if (d > this.t.portee * 0.7) {
+            dx = vise.x; dz = vise.z; vitesse = this.vitesseMax;
+            if (!this.pattes && this.voit && d > 5) {
+              // zigzag léger en approche : moins facile à viser, moins « robotique »
+              const z = Math.sin(this.temps * 2.3) * 0.45;
+              dx -= vise.z * z; dz += vise.x * z;
+              const n = Math.hypot(dx, dz);
+              dx /= n; dz /= n;
+            }
+          }
           if (this.voit) regard = _vers;
           if (this.voit && dist < this.t.portee && this.recharge <= 0) {
             this.etat = 'attaque';
@@ -458,6 +546,15 @@ class Ennemi {
       }
     }
 
+    // Pas de côté (esquive) après une touche
+    if (this.esquive > 0) {
+      this.esquive -= dt;
+      if (this.etat !== 'attaque') {
+        dx = -_vers.z * this.esquiveSens; dz = _vers.x * this.esquiveSens;
+        vitesse = this.vitesseMax * 1.6;
+      }
+    }
+
     this.deplacer(dx, dz, vitesse, dt, c);
 
     // Orientation
@@ -470,23 +567,137 @@ class Ennemi {
 
     // Animation
     const v = Math.hypot(this.vel.x, this.vel.z);
+    this.recul = Math.max(0, this.recul - dt);
     if (this.pattes) {
       this.animerMech(dt, v);
       g.position.set(this.position.x, 0, this.position.z);
     } else {
       this.animerSoldat(v, dt);
-      g.position.set(this.position.x, Math.abs(Math.sin(this.marche)) * 0.06, this.position.z);
+      this.animerTete(dt, j, dist, this.etat !== 'patrouille');
+      g.position.set(this.position.x, Math.abs(Math.sin(this.marche)) * 0.06 * Math.min(v / 2, 1), this.position.z);
     }
     g.rotation.y = this.angle;
-    g.scale.setScalar(this.t.echelle);
+    g.scale.setScalar(this.echelle);
 
+    // Éclair de touche : lueur chaude qui s'éteint vite
     this.flash -= dt;
-    this.mat.emissive.setScalar(this.flash > 0 ? 0.9 : 0);
+    const kf = Math.max(0, this.flash) / 0.12;
+    this.mat.emissive.setRGB(kf * 0.95, kf * 0.32, kf * 0.18);
+
+    // Visière : clignote en blanc à l'alerte, sinon couleur du type
+    this.flashVisiere -= dt;
+    this.lumineux[0].material = this.flashVisiere > 0 && (this.flashVisiere * 20 | 0) % 2 === 0
+      ? matVisiereFlash : this.matLumineux;
+
+    // Icône « ! » : apparaît en sautillant, puis rétrécit
+    if (this.icone > 0) {
+      this.icone -= dt;
+      const ecoule = DUREE_ICONE - this.icone;
+      let s;
+      if (this.icone <= 0) s = 0;
+      else if (ecoule < 0.15) s = ecoule / 0.15 * 1.3;
+      else if (this.icone < 0.2) s = this.icone / 0.2;
+      else s = 1 + Math.max(0, 0.3 - (ecoule - 0.15) * 2);
+      this.sprite.visible = s > 0.01;
+      this.sprite.scale.setScalar(0.42 * s * this.echelle);
+      this.sprite.position.set(
+        this.position.x,
+        (this.t.hauteur + 0.45) * this.echelle + Math.sin(ecoule * 9) * 0.04,
+        this.position.z,
+      );
+    }
+  }
+
+  /** Tête du soldat : suit le joueur quand il est repéré, regarde autour de lui sinon. */
+  animerTete(dt, j, dist, suit) {
+    let lacet, tangage;
+    if (suit) {
+      lacet = angleCourt(Math.atan2(j.position.x - this.position.x, j.position.z - this.position.z) - this.angle);
+      tangage = -Math.atan2(j.position.y + 1.5 - this.t.yeux * this.echelle, Math.max(dist, 0.5));
+    } else {
+      // balayage lent, plus large pendant les pauses
+      const amp = this.pause > 0 ? 1.0 : 0.35;
+      lacet = Math.sin(this.temps * 0.9) * amp + Math.sin(this.temps * 2.1) * 0.1;
+      tangage = Math.sin(this.temps * 0.6) * 0.12;
+    }
+    lacet = clamp(lacet, -1.1, 1.1);
+    tangage = clamp(tangage, -0.6, 0.5);
+    const k = Math.min(1, dt * 8);
+    this.regardTete += (lacet - this.regardTete) * k;
+    this.penchTete += (tangage - this.penchTete) * k;
+    // sursaut : la tête part en arrière
+    const r = this.recul / DUREE_RECUL;
+    this.cou.rotation.set(this.penchTete - r * 0.35, this.regardTete, -this.reculCote * r * 0.3);
+  }
+
+  /** Mort : chute (soldat) ou effondrement (mech), puis le corps se dissout en étincelles. */
+  animerMort(dt, c) {
+    const g = this.groupe;
+    this.mortTimer += dt;
+    const t = this.mortTimer;
+    const p = Math.min(1, t / DUREE_CHUTE);
+    // la visière clignote puis s'éteint
+    this.lumineux[0].visible = t < 0.5 && Math.random() < 0.6;
+    if (this.pattes) {
+      // le mech s'effondre : pattes écartées, châssis au sol, légère bascule
+      const q = Math.min(1, t / 0.5);
+      for (const patte of this.pattes) {
+        patte.hanche.rotation.z = q * 0.7;
+        patte.genou.rotation.z = -q * 0.9;
+      }
+      this.chassis.position.y = -q * q * 1.0 + Math.sin(Math.min(1, t / 0.7) * Math.PI) * 0.06;
+      this.chassis.rotation.z = q * 0.15 + Math.sin(t * 40) * 0.02 * (1 - q);
+      this.chassis.rotation.x = -q * 0.1;
+      g.position.y = 0;
+    } else {
+      // genoux qui lâchent, puis chute avec un petit rebond à l'impact
+      const genoux = Math.min(1, t / 0.25);
+      const chute = Math.max(0, (p - 0.2) / 0.8);
+      let angle = chute * chute * Math.PI / 2;
+      if (chute >= 1) angle -= Math.sin(Math.min(1, (t - DUREE_CHUTE) / 0.25) * Math.PI) * 0.08;
+      const sens = this.chuteAvant ? 1 : -1;
+      g.rotation.x = sens * angle;
+      g.rotation.z = this.chuteCote * chute;
+      for (const jambe of this.jambes) jambe.rotation.x = genoux * 0.5 * sens;
+      this.haut.rotation.set(sens * genoux * 0.35, 0, 0);
+      // bras ballants, tête qui part en arrière
+      this.bras[0].rotation.set(-sens * chute * 1.4 - 0.3, 0, 0.3 * chute);
+      this.bras[1].rotation.set(-sens * chute * 1.1 - 0.4, 0, -0.2 * chute);
+      this.cou.rotation.set(-sens * chute * 0.5, this.regardTete * (1 - chute), 0);
+      g.position.y = 0.06 * (1 - genoux);
+    }
+    // dissolution : le corps s'enfonce, s'efface et lâche des étincelles de sa couleur
+    const f = clamp((t - DEBUT_FONDU) / DUREE_FONDU, 0, 1);
+    if (f > 0) {
+      g.position.y -= f * 0.35;
+      this.mat.opacity = 1 - f;
+      if ((this.etincelleMort -= dt) <= 0) {
+        this.etincelleMort = 0.07;
+        const etendue = this.rayon * 2.4;
+        _v.set(
+          this.position.x + (Math.random() - 0.5) * etendue,
+          0.15 + Math.random() * 0.4,
+          this.position.z + (Math.random() - 0.5) * etendue,
+        );
+        c.effets.etincelles(_v, this.t.couleur, this.pattes ? 4 : 2, 0.6, 0.7, 1.6, -0.5);
+      }
+    }
+    if (t > DEBUT_FONDU + DUREE_FONDU) this.aSupprimer = true;
   }
 
   animerSoldat(v, dt) {
-    this.marche += dt * v * 2.2;
+    this.marche += dt * v * 2.2 * this.tempo;
     const balancier = Math.sin(this.marche) * Math.min(v / 3, 1) * 0.7;
+    // Respiration (plus rapide en combat), penché en avant quand il court, sursaut quand touché
+    const combat = this.etat !== 'patrouille';
+    const souffle = Math.sin(this.temps * (combat ? 3.4 : 1.8) * this.tempo);
+    const r = this.recul / DUREE_RECUL;
+    const course = Math.min(v / this.vitesseMax, 1);
+    this.haut.position.y = HANCHES_Y + souffle * 0.008;
+    this.haut.rotation.x = souffle * 0.018 + course * (combat ? 0.16 : 0.05) - r * 0.32 + (combat ? 0.05 : 0);
+    this.haut.rotation.y = Math.sin(this.marche) * 0.08 * course; // les épaules tournent avec le pas
+    this.haut.rotation.z = -this.reculCote * r * 0.25;
+    this.bras[0].rotation.z = this.bras[1].rotation.z = 0;
     this.jambes[0].rotation.x = balancier * 0.8;
     this.jambes[1].rotation.x = -balancier * 0.8;
     if (this.etat === 'attaque') {
@@ -505,10 +716,13 @@ class Ennemi {
       this.bras[0].rotation.x = -0.55 + balancier * 0.15;
       this.bras[0].rotation.z = 0.4;
     } else {
-      this.bras[0].rotation.x = balancier;
-      this.bras[0].rotation.z = 0;
-      this.bras[1].rotation.x = -0.35 - balancier * 0.3;
+      this.bras[0].rotation.x = balancier + souffle * 0.03;
+      this.bras[0].rotation.z = 0.06 + souffle * 0.015;
+      this.bras[1].rotation.x = -0.35 - balancier * 0.3 + souffle * 0.03;
     }
+    // le sursaut écarte un peu les bras
+    this.bras[0].rotation.x += r * 0.4;
+    this.bras[1].rotation.x += r * 0.3;
   }
 
   animerMech(dt, v) {
@@ -522,11 +736,19 @@ class Ennemi {
       p.hanche.rotation.z = leve;
       p.genou.rotation.z = -leve * 1.3;
     }
-    let tangage = 0, haut = Math.abs(Math.sin(this.marche * 2)) * 0.05 * k;
+    // ronronnement au repos + secousse quand il est touché
+    const r = this.recul / DUREE_RECUL;
+    const souffle = Math.sin(this.temps * 1.5 * this.tempo);
+    let tangage = souffle * 0.012 - r * 0.12;
+    let haut = Math.abs(Math.sin(this.marche * 2)) * 0.05 * k + souffle * 0.025;
+    this.chassis.rotation.z = Math.sin(this.temps * 47) * 0.03 * r;
+    // en patrouille à l'arrêt, le châssis pivote pour scruter les alentours
+    const scrute = this.etat === 'patrouille' && this.pause > 0 ? Math.sin(this.temps * 0.8) * 0.35 : 0;
+    this.chassis.rotation.y += (scrute - this.chassis.rotation.y) * Math.min(1, dt * 3);
     if (this.etat === 'attaque') {
       // se cabre puis écrase le joueur avec les pattes avant
       const p = 1 - this.timer / DUREE_ARMEMENT;
-      tangage = -Math.sin(p * Math.PI * 0.5) * 0.35;
+      tangage += -Math.sin(p * Math.PI * 0.5) * 0.35;
       haut += p * 0.3;
       for (const i of [0, 1]) {
         this.pattes[i].hanche.rotation.z = p * 0.9;
@@ -589,7 +811,7 @@ class Ennemi {
 
   tirer(c, dist) {
     const j = c.joueur;
-    const s = this.t.echelle;
+    const s = this.echelle;
     // bouche du fusil : devant l'épaule droite
     _origine.set(
       this.position.x + Math.sin(this.angle) * 1.0 * s + Math.cos(this.angle) * 0.3 * s,
@@ -610,6 +832,7 @@ class Ennemi {
 
   detruire() {
     this.scene.remove(this.groupe);
+    this.scene.remove(this.sprite);
     this.mat.dispose();
   }
 }

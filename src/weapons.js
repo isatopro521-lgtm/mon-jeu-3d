@@ -216,6 +216,7 @@ export class Armes {
     this.onBruit = onBruit;
     this.raycaster = new THREE.Raycaster();
     this.actif = false;
+    this.souffle = 0; // respiration de l'arme au repos
 
     this.support = new THREE.Group();
     this.support.position.copy(POSITION_BASE);
@@ -384,8 +385,13 @@ export class Armes {
     const k = Math.min(joueur.vitesseHorizontale / 6.5, 1.5) * (joueur.auSol ? 1 : 0.3);
     const b = joueur.balancement;
     this.recul = Math.max(0, this.recul - dt * (this.recul * 14 + 0.05));
-    m.groupe.position.set(Math.sin(b) * 0.014 * k, -Math.abs(Math.cos(b)) * 0.012 * k, this.recul * 0.7);
-    m.groupe.rotation.set(this.recul * 1.6, 0, 0);
+    // Respiration : l'arme monte et descend doucement, surtout à l'arrêt
+    this.souffle += dt;
+    const repos = 1 - Math.min(k, 1) * 0.7;
+    const sy = Math.sin(this.souffle * 1.7) * 0.0045 * repos;
+    const sx = Math.sin(this.souffle * 0.85) * 0.003 * repos;
+    m.groupe.position.set(Math.sin(b) * 0.014 * k + sx, -Math.abs(Math.cos(b)) * 0.012 * k + sy, this.recul * 0.7);
+    m.groupe.rotation.set(this.recul * 1.6 + sy * 1.5, sx * 2, Math.sin(b) * 0.02 * k);
 
     if (this.recharge > 0) {
       const p = 1 - this.recharge / this.arme.rechargement;
