@@ -276,7 +276,7 @@ export class Musique {
       this.jusque = fin;
     }
     // ambiance
-    const vent = (T < -2.95 ? 0.03 : T < 52 ? 0.07 : T < 98 ? 0.03 : T < 108 ? 0.05 : 0) * (this.baissee ? 0.5 : 1);
+    const vent = (T < -2.95 ? 0.03 : T < 52 ? 0.07 : T < 98 ? 0.03 : T < 108 ? 0.05 : 0) * (this.baissee ? 0.35 : 1);
     if (Math.abs(vent - this.niveauVent) > 0.001) {
       this.niveauVent = vent;
       this.vent.gain.gain.setTargetAtTime(vent, this.ctx.currentTime, 0.6);
@@ -486,7 +486,7 @@ export class Musique {
     const t = this.ctx.currentTime;
     this.baissee = oui;
     this.musique.gain.cancelScheduledValues(t);
-    this.musique.gain.setTargetAtTime(oui ? 0.32 : 0.85, t, oui ? 0.08 : 0.35);
+    this.musique.gain.setTargetAtTime(oui ? 0.2 : 0.85, t, oui ? 0.06 : 0.35);
     this.niveauVent = -1; // recalcule le vent à la prochaine image
   }
 
@@ -499,7 +499,7 @@ export class Musique {
     g.setValueAtTime(g.value, t);
     g.linearRampToValueAtTime(0.0001, t + 0.03);
     g.setValueAtTime(0.0001, t + 0.35);
-    g.linearRampToValueAtTime(this.baissee ? 0.32 : 0.85, t + 0.6);
+    g.linearRampToValueAtTime(this.baissee ? 0.2 : 0.85, t + 0.6);
   }
 
   /** Fondu de sortie de tout le bus (fin du générique). */

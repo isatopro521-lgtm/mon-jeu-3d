@@ -91,6 +91,8 @@
     }
     /* grandes bandes noires : les sous-titres vont dans la bande du bas */
     body.grandes-barres .texte.replique { bottom: auto; top: calc(100% - var(--barre) + 14px); }
+    /* commandes affichées : les sous-titres remontent au-dessus de la barre (sinon ils se chevauchent) */
+    body.controles-visibles:not(.grandes-barres) .texte.replique { bottom: calc(var(--barre, 0px) + 78px); }
     body.grandes-barres .texte.chapitre { top: calc(var(--barre) - 46px); }
     .texte.replique .qui {
       display: block; font-size: 0.6em; letter-spacing: 4px; text-transform: uppercase; color: var(--orange-2);
@@ -269,9 +271,10 @@
       <p id="conseil-portrait">Conseil : tourne ton téléphone en mode paysage pour un plus grand écran.</p>
       <div class="boutons-film">
         <button id="btn-lancer" type="button" disabled>Chargement…</button>
-        <button id="btn-voix" type="button" class="secondaire cache" aria-pressed="true" title="Répliques dites à voix haute (V)">🗣 Voix : oui</button>
+        <button id="btn-voix" type="button" class="secondaire" aria-pressed="true" title="Répliques dites à voix haute (V)">🗣 Voix : oui</button>
         <a class="lien-bouton" href="index.html">Retour au jeu</a>
       </div>
+      <p id="conseil-son" class="note">🔊 Monte le son (et désactive le mode silencieux sur iPhone).</p>
       <p id="chargement" class="note">Préparation des décors et des acteurs…</p>
       <p class="note note-pc">Pendant le film : <kbd>Espace</kbd> pause · <kbd>R</kbd> recommencer · <kbd>F</kbd> plein écran · <kbd>M</kbd> son · <kbd>V</kbd> voix</p>
       <p class="note note-tactile">Touche l'écran pour afficher les commandes (pause, recommencer, son, voix 🗣, plein écran).</p>
@@ -298,7 +301,7 @@
       <button id="c-lecture" class="c-btn" type="button" aria-label="Pause">❚❚</button>
       <button id="c-recommencer" class="c-btn" type="button" aria-label="Recommencer" title="Recommencer">⟲</button>
       <button id="c-son" class="c-btn" type="button" aria-label="Couper le son">🔊</button>
-      <button id="c-voix" class="c-btn cache" type="button" aria-label="Couper les voix" title="Voix (V)">🗣</button>
+      <button id="c-voix" class="c-btn" type="button" aria-label="Couper les voix" title="Voix (V)">🗣</button>
       <span id="c-temps">0:00 / 2:21</span>
       <span class="c-espace"></span>
       <button id="c-plein" class="c-btn" type="button" aria-label="Plein écran" title="Plein écran">⛶</button>
