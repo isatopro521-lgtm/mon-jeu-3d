@@ -1,9 +1,15 @@
-// Voix du film (film.js) : les répliques sont dites à voix haute par la synthèse vocale du navigateur
-// (Web Speech API, `speechSynthesis`), en même temps que les sous-titres. Aucun serveur, aucune clé.
-// - une voix française (fr-FR de préférence) ; chaque personnage a son timbre (hauteur, débit) ;
-// - pas de voix française disponible → sous-titres seuls, sans erreur ;
-// - les phrases sont dites une par une (Chrome coupe les énoncés trop longs) ;
+// Voix du film (film.js) : les répliques sont des fichiers audio pré-enregistrés, livrés avec le site
+// (audio/film/voix-00.mp3 … voix-27.mp3, MP3 mono, un par réplique, dans l'ordre des TEXTES avec `voix:`).
+// - lus par le même AudioContext que la musique (déverrouillé par le clic « Lancer le film ») :
+//   la voix marche partout, même sans voix française installée sur l'appareil ;
+// - pause/reprise : la suspension de l'AudioContext met la voix en pause avec la musique ;
+// - un fichier qui ne se charge pas → repli sur la synthèse vocale du navigateur (speechSynthesis)
+//   pour cette réplique ; sans voix française non plus → sous-titres seuls, sans erreur ;
 // - onParle(true/false) prévient le film pour baisser la musique pendant que la voix parle.
+
+export const NB_REPLIQUES = 28;
+const DOSSIER = 'audio/film/';
+const VOLUME_VOIX = 1.5; // (avant le volume général) : la voix domine nettement la musique
 
 const PERSONNAGES = {
   // narrateur : grave et posé
@@ -31,26 +37,85 @@ export function decouperPhrases(texte) {
   return blocs;
 }
 
+/** decodeAudioData compatible ancien Safari (fonctions de rappel seulement). */
+function decoder(ctx, donnees) {
+  return new Promise((ok, ko) => {
+    try {
+      const p = ctx.decodeAudioData(donnees, ok, ko);
+      if (p && typeof p.then === 'function') p.then(ok, ko);
+    } catch (e) { ko(e); }
+  });
+}
+
 export class Voix {
   constructor({ onParle = () => {}, onChange = () => {} } = {}) {
     this.synth = typeof window !== 'undefined' && 'speechSynthesis' in window ? window.speechSynthesis : null;
     this.onParle = onParle;
     this.onChange = () => {};
     this.voixParRole = {};
-    this.disponible = false;
+    this.voixSysteme = false; // voix française du navigateur (repli)
     this.actif = true;
-    this.enCours = 0;      // énoncés en train d'être dits
-    this.file = [];        // références gardées (sinon Chrome peut oublier les événements onend)
+    this.enCours = 0;      // répliques en train d'être dites
+    this.file = [];        // énoncés gardés (sinon Chrome peut oublier les événements onend)
     this.generation = 0;   // change à chaque annulation : les anciens événements sont ignorés
+    // fichiers audio
+    this.ctx = null;
+    this.gain = null;
+    this.tampons = new Array(NB_REPLIQUES).fill(null);  // AudioBuffer décodés
+    this.echecs = new Array(NB_REPLIQUES).fill(false);  // fichier introuvable / illisible
+    this.donnees = new Array(NB_REPLIQUES).fill(null);  // promesses des ArrayBuffer téléchargés
+    this.sources = [];     // AudioBufferSourceNode en cours
+    this.stats = { charges: 0, decodes: 0, echecs: 0, lancees: 0, synthese: 0 }; // (tests)
     try { this.actif = localStorage.getItem('film-voix') !== 'non'; } catch { /* stockage indisponible */ }
-    if (!this.synth) { this.onChange = onChange; return; }
-    this.choisirVoix();
+    this.telecharger();
+    if (this.synth) {
+      this.choisirVoix();
+      try { this.synth.addEventListener?.('voiceschanged', () => this.choisirVoix()); } catch { /* ancien navigateur */ }
+    }
     this.onChange = onChange; // (pas d'appel pendant la construction)
-    // les voix arrivent souvent après le chargement de la page
-    try { this.synth.addEventListener?.('voiceschanged', () => this.choisirVoix()); } catch { /* ancien navigateur */ }
   }
 
-  /** Choisit une voix française pour chaque personnage (deux voix différentes si possible). */
+  /** Les fichiers suffisent : le bouton Voix est toujours proposé. */
+  get disponible() { return true; }
+
+  /** Télécharge les fichiers dès l'ouverture de la page (le décodage attend l'AudioContext). */
+  telecharger() {
+    if (typeof fetch !== 'function') { this.echecs.fill(true); return; }
+    for (let i = 0; i < NB_REPLIQUES; i++) {
+      const url = `${DOSSIER}voix-${String(i).padStart(2, '0')}.mp3`;
+      this.donnees[i] = fetch(url)
+        .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); })
+        .then((b) => { this.stats.charges++; return b; })
+        .catch(() => { this.echecs[i] = true; this.stats.echecs++; return null; });
+    }
+  }
+
+  /**
+   * À appeler pendant le clic sur « Lancer le film » (AudioContext de la musique déjà créé) :
+   * branche la voix sur le volume général et décode les fichiers.
+   */
+  preparer(ctx, sortie) {
+    if (!ctx || this.ctx === ctx) return;
+    this.ctx = ctx;
+    try {
+      this.gain = ctx.createGain();
+      this.gain.gain.value = VOLUME_VOIX;
+      this.gain.connect(sortie);
+      // tampon muet : finit de déverrouiller l'audio sur les anciens iPhone
+      const muet = ctx.createBufferSource();
+      muet.buffer = ctx.createBuffer(1, 1, 22050);
+      muet.connect(ctx.destination);
+      muet.start(0);
+    } catch { /* audio indisponible : repli sur la synthèse */ }
+    for (let i = 0; i < NB_REPLIQUES; i++) {
+      this.donnees[i]?.then((b) => {
+        if (!b) return null;
+        return decoder(ctx, b).then((tampon) => { this.tampons[i] = tampon; this.stats.decodes++; });
+      }).catch(() => { this.echecs[i] = true; this.stats.echecs++; });
+    }
+  }
+
+  /** Repli : choisit une voix française du navigateur pour chaque personnage. */
   choisirVoix() {
     let liste = [];
     try { liste = this.synth.getVoices() || []; } catch { liste = []; }
@@ -68,42 +133,73 @@ export class Voix {
       varga: femme || premiere,
       base: (homme && fr.find((v) => v !== homme && HOMMES.test(v.name))) || autre || homme || premiere,
     };
-    const avant = this.disponible;
-    this.disponible = !!premiere;
-    if (avant !== this.disponible) this.onChange();
+    this.voixSysteme = !!premiere;
   }
-
-  get utilisable() { return !!this.synth && this.disponible && this.actif; }
 
   basculer() {
     this.actif = !this.actif;
     try { localStorage.setItem('film-voix', this.actif ? 'oui' : 'non'); } catch { /* stockage indisponible */ }
     if (!this.actif) this.annuler();
-    else this.debloquer(); // (clic) autorise la parole sur téléphone
+    else this.debloquer(); // (clic) autorise la parole de repli sur téléphone
     this.onChange();
   }
 
   /**
-   * À appeler pendant le clic sur « Lancer le film » : iOS et Android n'autorisent la parole
-   * qu'à partir d'un geste de l'utilisateur. Un énoncé muet suffit à « déverrouiller » la voix.
+   * À appeler pendant le clic : iOS et Android n'autorisent la synthèse vocale (repli) qu'à partir
+   * d'un geste de l'utilisateur. Un énoncé muet suffit à la « déverrouiller ».
    */
   debloquer() {
-    if (!this.synth) return;
-    if (!this.disponible) this.choisirVoix();
     this.annuler();
-    if (!this.utilisable || this.debloquee) return;
+    if (!this.synth || !this.actif || this.debloquee) return;
+    if (!this.voixSysteme) this.choisirVoix();
+    if (!this.voixSysteme) return;
     try {
       const u = new SpeechSynthesisUtterance(' ');
       u.volume = 0;
       u.lang = 'fr-FR';
       this.synth.speak(u);
       this.debloquee = true;
-    } catch { /* synthèse refusée : sous-titres seuls */ }
+    } catch { /* synthèse refusée : fichiers ou sous-titres seuls */ }
   }
 
-  /** Dit une réplique (texte brut) avec la voix du personnage. Coupe la réplique précédente. */
-  dire(role, texte) {
-    if (!this.utilisable) return false;
+  /**
+   * Dit la réplique n° `index` (personnage `role`, texte brut), en commençant `decalage` secondes
+   * après son début (reprise en cours de réplique). Coupe la réplique précédente.
+   * Renvoie true si quelque chose est dit.
+   */
+  dire(index, role, texte, decalage = 0) {
+    if (!this.actif) return false;
+    const tampon = this.tampons[index];
+    if (tampon && this.ctx && this.gain) {
+      if (decalage > tampon.duration - 0.25) return false; // réplique déjà presque finie
+      this.annuler();
+      const gen = this.generation;
+      try {
+        const src = this.ctx.createBufferSource();
+        src.buffer = tampon;
+        src.connect(this.gain);
+        src.onended = () => {
+          const i = this.sources.indexOf(src);
+          if (i >= 0) this.sources.splice(i, 1);
+          if (gen === this.generation) this.changerParle(-1);
+        };
+        this.sources.push(src);
+        this.changerParle(1);
+        src.start(0, Math.max(0, decalage));
+        this.stats.lancees++;
+        return true;
+      } catch {
+        this.changerParle(-1);
+        return false;
+      }
+    }
+    // fichier pas (encore) disponible : synthèse vocale du navigateur, au début de la réplique seulement
+    if (decalage > 0.6) return false;
+    return this.direSynthese(role, texte);
+  }
+
+  direSynthese(role, texte) {
+    if (!this.synth || !this.voixSysteme) return false;
     const p = PERSONNAGES[role] || PERSONNAGES.narrateur;
     const voix = this.voixParRole[role] || this.voixParRole.narrateur;
     this.annuler();
@@ -126,6 +222,7 @@ export class Voix {
         this.file.push(u);
         this.synth.speak(u);
       }
+      this.stats.synthese++;
       return true;
     } catch {
       return false; // synthèse indisponible : sous-titres seuls
@@ -142,6 +239,8 @@ export class Voix {
   annuler() {
     this.generation++;
     this.file.length = 0;
+    for (const s of this.sources) { try { s.stop(); } catch { /* déjà arrêtée */ } }
+    this.sources.length = 0;
     if (this.enCours > 0) { this.enCours = 0; this.onParle(false); }
     if (!this.synth) return;
     try {
@@ -150,20 +249,21 @@ export class Voix {
     } catch { /* rien à arrêter */ }
   }
 
+  /** Pause : les fichiers s'arrêtent avec l'AudioContext suspendu ; la synthèse est mise en pause. */
   pause() {
-    if (!this.synth) return;
+    if (!this.synth || this.file.length === 0) return;
     try { this.synth.pause(); } catch { /* non pris en charge */ }
   }
 
   reprendre() {
-    if (!this.synth) return;
+    if (!this.synth || this.file.length === 0) return;
     try { this.synth.resume(); } catch { /* non pris en charge */ }
     // Android ne sait pas reprendre : la phrase en pause est perdue, on remet la musique à niveau
     const gen = this.generation;
     setTimeout(() => {
       if (gen !== this.generation || !this.synth || this.synth.speaking || this.synth.pending) return;
       this.file.length = 0;
-      if (this.enCours > 0) { this.enCours = 0; this.onParle(false); }
+      if (this.enCours > 0 && this.sources.length === 0) { this.enCours = 0; this.onParle(false); }
     }, 400);
   }
 }

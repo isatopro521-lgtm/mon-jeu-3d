@@ -65,9 +65,13 @@ sont synthétisés en direct (Web Audio). Aucun fichier vidéo à télécharger.
 Mégastructure. L'éclaireuse Kaï Varga part seule… mais le silence cache une embuscade, et la Tempête Nexus approche.
 
 - **Accroche** : le film s'ouvre sur le combat final (Varga, bouclier à zéro, face au mech), puis « Une heure plus tôt… ».
-- **Voix** : narrateur, Varga et la Base (radio) parlent en français, en même temps que les sous-titres
-  (synthèse vocale de l'appareil, `speechSynthesis` : aucun serveur). La musique baisse quand une voix parle.
-  Sans voix française sur l'appareil, le film reste en sous-titres seuls. Bouton 🗣 / touche `V` pour couper les voix.
+- **Voix** : narrateur, Varga et la Base (radio) parlent en français, en même temps que les sous-titres.
+  Les 28 répliques sont des **fichiers audio livrés avec le site** (`audio/film/voix-00.mp3` … `voix-27.mp3`,
+  MP3 mono) : elles marchent sur tous les appareils (PC, Android, iPhone), sans voix installée ni serveur.
+  La musique baisse nettement quand une voix parle. Si un fichier ne se charge pas, l'appareil le remplace
+  par sa propre synthèse vocale (`speechSynthesis`), sinon sous-titres seuls. Bouton 🗣 / touche `V` pour
+  couper les voix. Sur iPhone, le bouton « silencieux » coupe le son du film : désactive-le.
+  Voix générées hors ligne (aucune clé, aucun service en ligne) — voir « Crédits des voix » dans `CREDITS.md`.
 - **Enjeux à l'écran** : compte à rebours de la Tempête et bouclier de Varga ; un mystère (le signal) résolu
   dans la **scène post-générique**, qui annonce l'épisode 2.
 - 5 chapitres (l'arrivée, l'embuscade, le combat en vue subjective, la tempête et le mech-araignée, l'épilogue),
@@ -290,14 +294,15 @@ Mode paysage conseillé ; en portrait, le champ de vision s'élargit automatique
 | `src/installation.js` | Aide à l'installation de l'app (bannière iPhone, bouton « Installer le jeu ») |
 | `film.html`, `src/film.js` | Le film : scénario (événements, plans de caméra, textes, fondus), acteurs pilotés, lecture |
 | `src/film-musique.js` | Musique et ambiance du film (synthèse Web Audio, partition écrite en temps du film, baisse pendant les voix) |
-| `src/film-voix.js` | Voix du film : répliques dites par la synthèse vocale du navigateur (voix fr, timbre par personnage) |
+| `src/film-voix.js` | Voix du film : lecture des répliques pré-enregistrées (Web Audio), repli sur la synthèse vocale du navigateur |
+| `audio/film/` | Les 28 répliques du film en MP3 (voix générées hors ligne, crédits dans `CREDITS.md`) |
 | `src/partage.js` | Partage du jeu, liens de défi `?defi=…&nom=…`, bandeau et résultat du défi |
 | `robots.txt`, `sitemap.xml` | Référencement par les moteurs de recherche |
 | `PUBLIER-ITCH.md` | Textes et étapes pour publier sur itch.io et faire connaître le jeu |
 | `sw.js` | Service worker : cache des fichiers du jeu, jeu hors ligne, mises à jour |
 | `manifest.webmanifest` | Manifest de l'app (nom, icônes, plein écran paysage, captures) |
 | `confidentialite.html` | Page de confidentialité (demandée par les stores) |
-| `credits.html`, `CREDITS.md` | Crédits et licences des modèles 3D (lien en bas du menu) |
+| `credits.html`, `CREDITS.md` | Crédits et licences des modèles 3D et des voix du film (lien en bas du menu) |
 | `icons/`, `captures/` | Icônes de l'app et captures d'écran pour les stores |
 
 `lib/three/` contient Three.js 0.160.0 (avec les modules officiels `GLTFLoader`, `SkeletonUtils`,

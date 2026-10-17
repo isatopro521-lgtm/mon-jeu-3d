@@ -1,4 +1,4 @@
-# Crédits — modèles 3D de NEXUS FRONTIER
+# Crédits — modèles 3D et voix de NEXUS FRONTIER
 
 Les personnages et les armes réalistes du jeu (dossier `modeles/`) viennent de modèles libres.
 Tous autorisent un jeu publié gratuitement ; les licences CC BY demandent seulement de citer l'auteur,
@@ -27,6 +27,22 @@ Les fichiers sources ont été récupérés via les dépôts publics
 [AetherRadar/operation-steel-tide](https://github.com/AetherRadar/operation-steel-tide) (qui documente
 la provenance et la licence de chaque fichier) et
 [bumbeishvili/green-diamond](https://github.com/bumbeishvili/green-diamond) (Mossberg 590A1).
+
+## Voix du film (`audio/film/`)
+
+Les 28 répliques du film (`audio/film/voix-00.mp3` … `voix-27.mp3`) ont été générées hors ligne par
+synthèse vocale (aucun service en ligne, aucune voix de personne connue clonée), puis filtrées
+(voix grave du narrateur, filtre radio de la Base) et normalisées :
+
+| Personnage | Moteur et voix | Licence du modèle / des données |
+|------------|----------------|----------------------------------|
+| Varga | [Kokoro-82M](https://github.com/hexgrad/kokoro) v1.0, voix française `ff_siwis` | Modèle Apache 2.0 ; voix issue du corpus [SIWIS](https://datashare.is.ed.ac.uk/handle/10283/2353) (CC BY 4.0) |
+| Narrateur | [Piper](https://github.com/rhasspy/piper) `fr_FR-tom-medium` | Modèle et données [Tjiho/French-tts-model-piper](https://git.bksp.space/Tjiho/French-tts-model-piper) (AGPLv3) |
+| Base (radio) | [Piper](https://github.com/rhasspy/piper) `fr_FR-upmc-medium`, voix « pierre » | Données [UPMC Pierre](https://github.com/marytts/upmc-pierre-data) ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/deed.fr)) |
+
+Modèles exécutés avec [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache 2.0) ; vérification
+automatique des répliques avec Whisper small (MIT). Par prudence, les répliques de la Base (voix UPMC Pierre)
+sont redistribuées sous la même licence CC BY-SA 4.0.
 
 ## Bibliothèque
 

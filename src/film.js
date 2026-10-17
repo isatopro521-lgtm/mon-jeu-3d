@@ -878,7 +878,8 @@ const PLANS = [
 // Textes à l'écran. type : narration (centre), titre, chapitre (carton), replique (sous-titre)
 // ============================================================================================
 // voix : personnage qui dit la réplique à voix haute (film-voix.js) — le texte dit est exactement
-// le sous-titre affiché (sans le nom du personnage, sauf direQui).
+// le sous-titre affiché (sans le nom du personnage, sauf direQui). Chaque réplique a son fichier
+// audio/film/voix-NN.mp3, numéroté dans l'ordre de cette liste (ne pas réordonner sans régénérer).
 const TEXTES = [
   // Accroche
   { d: -11.7, f: -9.2, type: 'replique radio alerte', voix: 'base', html: '<span class="qui">Base · radio</span> Varga ! Bouclier à zéro ! Sortez de là !' },
@@ -933,6 +934,7 @@ for (const [d, nom] of REPERES) {
   r.title = nom;
   el.chapitres?.appendChild(r);
 }
+let numeroVoix = 0;
 for (const t of TEXTES) {
   const div = document.createElement('div');
   div.className = `texte ${t.type}`;
@@ -949,6 +951,7 @@ for (const t of TEXTES) {
     if (!t.direQui) copie.querySelector('.qui')?.remove();
     for (const br of copie.querySelectorAll('br')) br.replaceWith(' ');
     t.dit = copie.textContent.replace(/\s+/g, ' ').trim();
+    t.numero = numeroVoix++; // fichier audio/film/voix-NN.mp3
   }
   t.dite = false;
 }
@@ -1028,7 +1031,11 @@ function lancer({ son = true } = {}) {
     initAudio();
     const audio = contexteAudio();
     if (audio && !musique) musique = new Musique(audio.ctx, audio.maitre);
-    if (audio) audio.maitre.gain.value = muet ? 0 : 0.45;
+    if (audio) {
+      audio.maitre.gain.value = muet ? 0 : 0.45;
+      Promise.resolve(audio.ctx.resume?.()).catch(() => {}); // (clic) déverrouille le son, iPhone compris
+      voix.preparer(audio.ctx, audio.maitre); // voix pré-enregistrées, sur le même contexte que la musique
+    }
   }
   reinitialiser();
   etat = 'lecture';
@@ -1065,11 +1072,10 @@ function majBoutons() {
   el.lecture.setAttribute('aria-label', lecture ? 'Pause' : 'Lecture');
   el.son.textContent = muet ? '🔇' : '🔊';
   el.son.setAttribute('aria-label', muet ? 'Remettre le son' : 'Couper le son');
-  // bouton « voix » : barré si désactivée, caché si le navigateur n'a pas de voix française
-  const dispo = voix.disponible;
+  // bouton « voix » : barré si désactivée (les fichiers audio suffisent : toujours proposé)
   for (const b of [el.voix, el.voixAccueil]) {
     if (!b) continue;
-    b.classList.toggle('cache', !dispo);
+    b.classList.toggle('cache', !voix.disponible);
     b.classList.toggle('voix-off', !voix.actif);
     b.setAttribute('aria-pressed', String(voix.actif));
   }
@@ -1170,9 +1176,14 @@ function majVoix() {
   for (const t of TEXTES) {
     if (!t.voix || t.dite || T < t.d) continue;
     t.dite = true;
-    // réplique déjà presque finie (avance rapide) : on ne la dit pas
-    if (T < t.f - 0.4 && etat === 'lecture' && sonActif && !muet) voix.dire(t.voix, t.dit);
+    // réplique déjà presque finie (avance rapide) : on ne la dit pas ; sinon elle part de là où en est le film
+    if (T < t.f - 0.4 && etat === 'lecture' && sonActif && !muet) voix.dire(t.numero, t.voix, t.dit, T - t.d);
   }
+}
+
+/** Son remis ou voix réactivée : la réplique en cours reprend là où en est le film. */
+function rearmerVoix() {
+  for (const t of TEXTES) if (t.voix && T >= t.d && T < t.f - 0.4) t.dite = false;
 }
 
 // Étalonnage par scène : teinte (fusion « lumière douce ») + vignette. [début, r, v, b, force, vignette]
@@ -1303,11 +1314,13 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && eta
 let minuteurControles = 0;
 function montrerControles() {
   el.controles.classList.add('visible');
+  document.body.classList.add('controles-visibles'); // sous-titres au-dessus de la barre
   document.body.classList.remove('sans-curseur');
   clearTimeout(minuteurControles);
   if (etat === 'lecture') {
     minuteurControles = setTimeout(() => {
       el.controles.classList.remove('visible');
+      document.body.classList.remove('controles-visibles');
       document.body.classList.add('sans-curseur');
     }, 2800);
   }
@@ -1328,6 +1341,7 @@ if (!document.fullscreenEnabled) el.plein.classList.add('cache');
 function basculerSon() {
   muet = !muet;
   if (muet) voix.annuler();
+  else rearmerVoix();
   const audio = contexteAudio();
   if (audio) audio.maitre.gain.value = muet ? 0 : 0.45;
   majBoutons();
@@ -1344,8 +1358,12 @@ el.lecture.addEventListener('click', () => {
 });
 el.recommencer.addEventListener('click', () => lancer());
 el.son.addEventListener('click', basculerSon);
-el.voix?.addEventListener('click', () => voix.basculer());
-el.voixAccueil?.addEventListener('click', () => voix.basculer());
+function basculerVoix() {
+  voix.basculer();
+  if (voix.actif) rearmerVoix();
+}
+el.voix?.addEventListener('click', basculerVoix);
+el.voixAccueil?.addEventListener('click', basculerVoix);
 el.plein.addEventListener('click', basculerPleinEcran);
 
 // Toucher / souris sur l'image : affiche les commandes (au tactile) ou met en pause (clic souris)
@@ -1354,6 +1372,7 @@ el.scene.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse') pause(etat === 'lecture');
   else if (el.controles.classList.contains('visible') && etat === 'lecture') {
     el.controles.classList.remove('visible');
+    document.body.classList.remove('controles-visibles');
     clearTimeout(minuteurControles);
   } else montrerControles();
 });
@@ -1368,7 +1387,7 @@ addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyR' && etat !== 'accueil') lancer();
   else if (e.code === 'KeyF') basculerPleinEcran();
   else if (e.code === 'KeyM') basculerSon();
-  else if (e.code === 'KeyV') voix.basculer();
+  else if (e.code === 'KeyV') basculerVoix();
   else return;
   montrerControles();
 });
@@ -1390,6 +1409,9 @@ if (DEBUG || CAPTURE) {
     get acteurs() { return acteurs.map((a) => ({ type: a.e.type, mort: a.e.mort, x: a.e.position.x, z: a.e.position.z })); },
     get plan() { return PLANS.indexOf(planCourant); },
     lancer, pause, scene, camera, renderer, tempete, qualite, contexteAudio, voix,
+    get musique() { return musique; },
+    /** Voix pré-enregistrées : fichiers chargés / décodés / en échec, répliques lancées. */
+    get statsVoix() { return { ...voix.stats, enCours: voix.enCours }; },
     /** Répliques dites à voix haute : [début, fin, personnage, texte]. */
     get duree() { return DUREE; },
     get debut() { return -OUVERTURE; },
